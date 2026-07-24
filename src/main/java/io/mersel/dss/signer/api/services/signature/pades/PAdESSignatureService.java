@@ -81,8 +81,9 @@ public class PAdESSignatureService {
                                String attachmentFileName,
                                boolean appendMode,
                                SigningMaterial material) {
+        PdfReader reader = null;
         try {
-            PdfReader reader = new PdfReader(pdfInputStream);
+            reader = new PdfReader(pdfInputStream);
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             PdfStamper stamper = PdfStamper.createSignature(
                 reader, outputStream, '\0', null, appendMode);
@@ -127,6 +128,13 @@ public class PAdESSignatureService {
         } catch (Exception e) {
             LOGGER.error("PAdES imzası oluşturulurken hata", e);
             throw new SignatureException("PAdES imzası oluşturulamadı", e);
+        } finally {
+            // PdfReader alttaki multipart temp-file handle'ını tutar; başarı ve
+            // hata yolunun her ikisinde de kapatılmalı (aksi halde özellikle
+            // Windows'ta temp dosya silinemez / handle sızar).
+            if (reader != null) {
+                reader.close();
+            }
         }
     }
 
