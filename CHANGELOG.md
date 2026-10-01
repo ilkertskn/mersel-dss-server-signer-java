@@ -7,6 +7,8 @@ ve bu proje [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kullanmak
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-01
+
 ### Changed (BREAKING — bu sürüm MAJOR'dur: 2.0.0)
 
 - **`TestCompany.TestKurum1` enum değeri kaldırıldı → `TestKurum17`.**
