@@ -155,7 +155,20 @@
             <artifactId>dss-cades</artifactId>
             <version>6.3</version>
         </dependency>
-        <!-- CMS implementation required by dss-cades 6.x at runtime -->
+        <!-- PAdES (PDF) imzalama: DSS PAdES API + PDFBox 3 implementasyonu.
+             B/T/LT/LTA seviyelerini native destekler; CAdES/XAdES ile aynı
+             CertificateVerifier + TSP source altyapısını paylaşır. -->
+        <dependency>
+            <groupId>eu.europa.ec.joinup.sd-dss</groupId>
+            <artifactId>dss-pades</artifactId>
+            <version>6.3</version>
+        </dependency>
+        <dependency>
+            <groupId>eu.europa.ec.joinup.sd-dss</groupId>
+            <artifactId>dss-pades-pdfbox</artifactId>
+            <version>6.3</version>
+        </dependency>
+        <!-- CMS implementation required by dss-cades / dss-pades 6.x at runtime -->
         <dependency>
             <groupId>eu.europa.ec.joinup.sd-dss</groupId>
             <artifactId>dss-cms-object</artifactId>
@@ -216,11 +229,13 @@
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/org.apache.pdfbox/pdfbox -->
+        <!-- https://mvnrepository.com/artifact/org.apache.pdfbox/pdfbox
+             DSS 6.3 dss-pades-pdfbox PDFBox 3.0.5 ile uyumludur (DSS-3616).
+             2.x/3.x split-brain'i önlemek için sürüm DSS ile lockstep tutulur. -->
         <dependency>
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>
-            <version>2.0.24</version>
+            <version>3.0.5</version>
         </dependency>
 
         <dependency>

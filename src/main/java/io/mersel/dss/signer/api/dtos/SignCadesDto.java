@@ -5,6 +5,7 @@ import javax.validation.constraints.NotBlank;
 import org.springframework.web.multipart.MultipartFile;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.mersel.dss.signer.api.models.enums.CadesSignatureLevel;
 
 /**
  * CAdES imzalama endpoint'ine gönderilen isteğin veri taşıma nesnesi.
@@ -34,6 +35,13 @@ public class SignCadesDto {
      */
     private Boolean Detached;
 
+    /**
+     * CAdES imza profili (seviyesi). API kontratı gereği bu alan
+     * <strong>asla null değildir</strong>; gönderilmediği takdirde varsayılan
+     * {@link CadesSignatureLevel#CADES_BES} uygulanır (TSA çağrılmaz).
+     */
+    private CadesSignatureLevel SignatureLevel = CadesSignatureLevel.CADES_BES;
+
     @Schema(description = "İmzalanacak dosya (zorunlu). Her türlü dosya formatı kabul edilir.",
             required = true)
     public MultipartFile getDocument() {
@@ -53,5 +61,26 @@ public class SignCadesDto {
 
     public void setDetached(Boolean detached) {
         Detached = detached;
+    }
+
+    /**
+     * Daima non-null bir {@link CadesSignatureLevel} döner; field initializer ve
+     * setter null-guard birlikte "asla null" kontratını korur.
+     */
+    public CadesSignatureLevel getSignatureLevel() {
+        return SignatureLevel;
+    }
+
+    @Schema(
+        enumAsRef = true,
+        description = "CAdES imza profili. Boş bırakılırsa CADES_BES uygulanır (TSA çağrılmaz). "
+                + "CADES_T (signature timestamp), CADES_LT (uzun dönem doğrulama verisi) veya "
+                + "CADES_A (archive timestamp) istenirse TSA gerekir; TSA yapılandırılmamışsa "
+                + "istek TIMESTAMP_ERROR ile reddedilir.",
+        example = "CADES_BES",
+        defaultValue = "CADES_BES"
+    )
+    public void setSignatureLevel(CadesSignatureLevel signatureLevel) {
+        SignatureLevel = signatureLevel != null ? signatureLevel : CadesSignatureLevel.CADES_BES;
     }
 }

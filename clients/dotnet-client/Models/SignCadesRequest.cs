@@ -15,6 +15,12 @@ public sealed class SignCadesRequest
     /// </summary>
     public bool Detached { get; set; }
 
+    /// <summary>
+    /// CAdES imza profili. Varsayılan <see cref="CadesSignatureLevel.CADES_BES"/>
+    /// (TSA çağrılmaz). T/LT/A istenirse sunucuda TSA yapılandırılmış olmalıdır.
+    /// </summary>
+    public CadesSignatureLevel SignatureLevel { get; set; } = CadesSignatureLevel.CADES_BES;
+
     /// <summary>İsteğe konacak multipart dosya adı.</summary>
     public string FileName { get; set; } = "document.bin";
 

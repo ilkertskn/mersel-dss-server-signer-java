@@ -1,14 +1,16 @@
 # Start Sign API with Test Kurum Configuration
-# Usage: .\start-test-kurum.ps1 [kurum_no] [cert_type]
+# Usage: .\start-test-kurum.ps1 [kurum_no]
 # Examples:
-#   .\start-test-kurum.ps1 1          # Kurum 1 - RSA (default)
-#   .\start-test-kurum.ps1 2 rsa      # Kurum 2 - RSA
-#   .\start-test-kurum.ps1 2 ec384    # Kurum 2 - EC384
-#   .\start-test-kurum.ps1 3 ec384    # Kurum 3 - EC384
+#   .\start-test-kurum.ps1 17         # Kurum 17 - EC384 (default)
+#   .\start-test-kurum.ps1 2          # Kurum 2 - EC384
+#   .\start-test-kurum.ps1 3          # Kurum 3 - EC384
+#
+# 2026-10: RSA test sertifikalari Kamu SM tarafinda yenilenmedigi icin
+# kaldirildi; tum kurumlar EC384 setinden secilir.
 
 param(
-    [int]$KurumNo = 1,
-    [string]$CertType = "rsa"
+    [int]$KurumNo = 17,
+    [string]$CertType = "ec384"
 )
 
 $ErrorActionPreference = "Stop"
@@ -18,25 +20,15 @@ $DockerDir = Split-Path -Parent $ScriptDir
 
 # Sertifika mapping
 $CertMap = @{
-    "1_rsa" = @{
-        File = "testkurum01_rsa2048@test.com.tr_614573.pfx"
-        Pin = "614573"
-        Alias = "testkurum01"
-    }
-    "2_rsa" = @{
-        File = "testkurum02_rsa2048@sm.gov.tr_059025.pfx"
-        Pin = "059025"
-        Alias = "testkurum02"
+    "17_ec384" = @{
+        File = "testkurum17_ec384@test.gov.tr_328829.pfx"
+        Pin = "328829"
+        Alias = "testkurum17"
     }
     "2_ec384" = @{
         File = "testkurum02_ec384@test.com.tr_825095.pfx"
         Pin = "825095"
         Alias = "testkurum02_ec"
-    }
-    "3_rsa" = @{
-        File = "testkurum03_rsa2048@test.com.tr_181193.pfx"
-        Pin = "181193"
-        Alias = "testkurum03"
     }
     "3_ec384" = @{
         File = "testkurum03_ec384@test.com.tr_540425.pfx"
@@ -55,11 +47,9 @@ if (-not $CertInfo) {
     Write-Host "  .\start-test-kurum.ps1 [kurum_no] [cert_type]"
     Write-Host ""
     Write-Host "Geçerli kombinasyonlar:"
-    Write-Host "  .\start-test-kurum.ps1 1          # Kurum 1 - RSA (sadece RSA)"
-    Write-Host "  .\start-test-kurum.ps1 2 rsa      # Kurum 2 - RSA"
-    Write-Host "  .\start-test-kurum.ps1 2 ec384    # Kurum 2 - EC384"
-    Write-Host "  .\start-test-kurum.ps1 3 rsa      # Kurum 3 - RSA"
-    Write-Host "  .\start-test-kurum.ps1 3 ec384    # Kurum 3 - EC384"
+    Write-Host "  .\start-test-kurum.ps1 17         # Kurum 17 - EC384 (default)"
+    Write-Host "  .\start-test-kurum.ps1 2          # Kurum 2 - EC384"
+    Write-Host "  .\start-test-kurum.ps1 3          # Kurum 3 - EC384"
     exit 1
 }
 
@@ -102,5 +92,5 @@ Write-Host "📝 View logs: docker-compose logs -f sign-api" -ForegroundColor Ye
 Write-Host "🛑 Stop: docker-compose down" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "💡 Farklı kombinasyonlar için:" -ForegroundColor Yellow
-Write-Host "   .\start-test-kurum.ps1 2 ec384  # Kurum 2 - EC384"
-Write-Host "   .\start-test-kurum.ps1 3 rsa    # Kurum 3 - RSA"
+Write-Host "   .\start-test-kurum.ps1 2        # Kurum 2 - EC384"
+Write-Host "   .\start-test-kurum.ps1 3        # Kurum 3 - EC384"

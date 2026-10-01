@@ -28,12 +28,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>Farklı PDF yapılarının (multi-page, landscape, Türkçe karakter,
  * 50-sayfa) signer'ın ByteRange + signature dictionary yerleştirme
  * akışını bozmadığını test eder. Mevcut {@link PAdESSignAndVerifyE2ETest}
- * tek PDF (1-sayfa, programatik iText) × 5 PFX × 2 backend = 10 senaryo
+ * tek PDF (1-sayfa, programatik iText) × 3 PFX × 2 backend = 6 senaryo
  * PFX-key matriksini kapsar; bu sınıf <b>tamamlayıcı</b> PDF-content
  * regresyon vektörüdür.</p>
  *
  * <h3>Senaryo matrisi</h3>
- * <p>Tek RSA PFX × JCA backend × 4 fixture = <b>4 senaryo</b>. Key-tipinden
+ * <p>Tek EC PFX × JCA backend × 4 fixture = <b>4 senaryo</b>. Key-tipinden
  * bağımsız (PDF-structure regression testi); 5×2 matriks CI yükü olur,
  * değer eklemez.</p>
  *
@@ -54,14 +54,19 @@ class PAdESDocumentVariationsE2ETest extends AbstractVerifierE2ETest {
     @BeforeAll
     static void initSigningStack() {
         padesSignatureService = new PAdESSignatureService(
-                new Semaphore(2),
-                new DigestAlgorithmResolverService());
+                new eu.europa.esig.dss.pades.signature.PAdESService(
+                        new eu.europa.esig.dss.spi.validation.CommonCertificateVerifier()),
+                new io.mersel.dss.signer.api.services.crypto.CryptoSignerService(
+                        new io.mersel.dss.signer.api.services.crypto.SignatureAlgorithmResolverService()),
+                new DigestAlgorithmResolverService(),
+                new io.mersel.dss.signer.api.services.timestamp.TimestampConfigurationService("", "", "", false),
+                new Semaphore(2));
         defaultMaterial = E2eSigningBackend.PFX_JCA.load(PfxTestKey.positiveValues()[0]);
     }
 
     @ParameterizedTest(name = "{0}")
     @EnumSource(PadesDocumentFixture.class)
-    @DisplayName("PAdES PDF variation: 4 fixture × tek RSA PFX × JCA")
+    @DisplayName("PAdES PDF variation: 4 fixture × tek EC PFX × JCA")
     void padesPdfRoundtripIsValid(PadesDocumentFixture fixture) {
         byte[] pdfBytes = fixture.readBytes();
         assertTrue(pdfBytes.length > 0, "PDF fixture boş olmamalı: " + fixture);

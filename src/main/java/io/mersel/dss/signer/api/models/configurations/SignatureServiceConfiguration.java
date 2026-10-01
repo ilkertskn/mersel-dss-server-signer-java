@@ -38,6 +38,19 @@ public class SignatureServiceConfiguration {
     @Value("${PKCS11_NULL_INIT_ARGS:false}")
     private boolean pkcs11NullInitArgs;
 
+    /**
+     * Bazı HSM cihazları public objeleri (sertifika / public key) ve hatta
+     * mekanizma listesini bile authenticate edilmemiş oturuma göstermez.
+     * {@code true} ise {@code IaikPkcs11Module} token seçilir seçilmez —
+     * herhangi bir token sorgusundan önce — bootstrap bir oturum açıp
+     * {@code C_Login(CKU_USER, pin)} yapar. Bu modda PIN zorunludur ve
+     * login hatası fail-fast'tir.
+     *
+     * <p>CLI karşılığı: {@code --list-certificates --force-login}.</p>
+     */
+    @Value("${PKCS11_FORCE_LOGIN:false}")
+    private boolean pkcs11ForceLogin;
+
     // ====================================================================
     // PKCS#11 köprü (out-of-process helper) yapılandırması
     // --------------------------------------------------------------------
@@ -263,6 +276,10 @@ public class SignatureServiceConfiguration {
 
     public boolean isPkcs11NullInitArgs() {
         return pkcs11NullInitArgs;
+    }
+
+    public boolean isPkcs11ForceLogin() {
+        return pkcs11ForceLogin;
     }
 
     public String getPkcs11BridgeMode() {

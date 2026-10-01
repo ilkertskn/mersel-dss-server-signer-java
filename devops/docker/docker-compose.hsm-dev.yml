@@ -1,0 +1,65 @@
+# ════════════════════════════════════════════════════════════════════════════
+#  docker-compose.hsm-dev.yml — Sansec HSM (.so) IN-PROCESS dev profili
+#  linux/amd64 container (Apple Silicon'da Rosetta/QEMU ile emüle edilir)
+# ════════════════════════════════════════════════════════════════════════════
+#
+#  KULLANIM:
+#    1) cp devops/docker/.env.hsm-dev.example devops/docker/.env.hsm-dev
+#       → HSM_LIB_DIR + CERTIFICATE_PIN doldur (.env.hsm-dev gitignored)
+#    2) Host'ta jar üret:  ./mvnw -q -DskipTests package   (veya IntelliJ "Make")
+#    3) docker compose -f devops/docker/docker-compose.hsm-dev.yml \
+#            --env-file devops/docker/.env.hsm-dev up --build
+#    4) IntelliJ: "Signer - HSM Sansec (Docker attach 5005)" → :5005'e debugger bağla
+#       API: http://localhost:8085/actuator/health
+#
+#  NOT: relative volume/env yolları BU DOSYANIN dizinine (devops/docker) göre
+#  çözülür; ../../target repo kökündeki target/'a denk gelir.
+# ════════════════════════════════════════════════════════════════════════════
+name: mersel-dss-signer-hsm-dev
+
+services:
+  signer-hsm:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Dockerfile.hsm-dev
+    image: mersel/dss-signer-hsm-dev:latest
+    container_name: mersel-dss-signer-hsm
+    working_dir: /opt/hsm
+    ports:
+      - "8085:8085"   # HTTP API
+      - "5005:5005"   # JDWP remote debug
+    environment:
+      # ─── Spring Profile ─────────────────────────────────────────────
+      SPRING_PROFILES_ACTIVE: "local,hsm-sansec-docker"
+      SERVER_PORT: "8085"
+
+      # ─── PKCS#11 (container-içi yollar) ─────────────────────────────
+      # libupkcs11.so → /opt/hsm (HSM_LIB_DIR mount'u). libswsds.so aynı dizinde;
+      # LD_LIBRARY_PATH sayesinde bulunur. swsds0.ini/upkcs11.ini WORKDIR'den okunur.
+      PKCS11_LIBRARY: /opt/hsm/libupkcs11.so
+      LD_LIBRARY_PATH: /opt/hsm
+      PKCS11_SLOT: "${PKCS11_SLOT:--1}"
+      PKCS11_SLOT_LIST_INDEX: "${PKCS11_SLOT_LIST_INDEX:--1}"
+      PKCS11_NULL_INIT_ARGS: "${PKCS11_NULL_INIT_ARGS:-false}"
+
+      # ─── HSM kimlik (gitignored .env.hsm-dev'den) ───────────────────
+      # CERTIFICATE_PIN zorunlu; verilmezse compose fail-fast eder.
+      CERTIFICATE_PIN: "${CERTIFICATE_PIN:?.env.hsm-dev icinde CERTIFICATE_PIN set edin}"
+      CERTIFICATE_ALIAS: "${CERTIFICATE_ALIAS:-}"
+      CERTIFICATE_SERIAL_NUMBER: "${CERTIFICATE_SERIAL_NUMBER:-}"
+
+      # ─── Performans / Logging ───────────────────────────────────────
+      MAX_SESSION_COUNT: "${MAX_SESSION_COUNT:-10}"
+      LOG_PATH: /opt/hsm/signer-logs
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+
+      # ─── JVM: heap + JDWP debug agent (IntelliJ :5005'e attach) ─────
+      JAVA_OPTS: "-Xms512m -Xmx1g -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+    volumes:
+      # HSM vendor dizini: libupkcs11.so + libswsds.so + swsds0.ini + upkcs11.ini
+      # + OBJSP02 cache. rw — .so log + persistent cache buraya yazar.
+      - "${HSM_LIB_DIR:?libupkcs11.so + swsds0.ini iceren host dizini}:/opt/hsm"
+      # Host'ta build edilen jar (read-only). Kod degistikce: mvn package + restart.
+      - "../../target:/app:ro"
+    restart: "no"

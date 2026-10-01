@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 /**
  * {@link TestUserCounterSignatureService}'in {@code mersel-dss-agent-signer-java}'daki
  * {@code XadesService.doCounterSignature} ile <strong>bit-bit parite</strong>
- * ürettiğini Kamu SM RSA-2048 test sertifikasıyla doğrular.
+ * ürettiğini Kamu SM EC-P384 test sertifikasıyla doğrular.
  *
  * <p>Test, agent reposundaki {@code XadesCounterSignatureTest}'in birebir
  * eşdeğeridir; aynı XAdES-BES yapısal invariant'larını ve XML-DSig
@@ -62,9 +62,9 @@ class TestUserCounterSignatureServiceTest {
     }
 
     @Test
-    @DisplayName("Kamu SM RSA-2048 PFX ile XAdES-BES counter-signature ekler ve XML-DSig doğrulamasını geçer")
+    @DisplayName("Kamu SM EC-P384 PFX ile XAdES-BES counter-signature ekler ve XML-DSig doğrulamasını geçer")
     void addsAndVerifiesCounterSignature() throws Exception {
-        PfxTestKey key = PfxTestKey.KURUM01_RSA2048;
+        PfxTestKey key = PfxTestKey.KURUM17_EC384;
         assumeTrue(key.isAvailable(), "Skip — PFX yok: " + key.getAbsolutePath());
 
         byte[] originalSignedXml = sampleSignedXadesDocument();
@@ -74,7 +74,7 @@ class TestUserCounterSignatureServiceTest {
 
         SignResponse response = service.counterSign(
                 new ByteArrayInputStream(originalSignedXml),
-                TestCompany.TestKurum1);
+                TestCompany.TestKurum17);
 
         assertNotNull(response, "SignResponse null olmamalı.");
         assertNotNull(response.getSignedDocument(),
@@ -191,7 +191,7 @@ class TestUserCounterSignatureServiceTest {
                         + "  <ds:Signature xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" Id=\"sig1\">"
                         + "    <ds:SignedInfo>"
                         + "      <ds:CanonicalizationMethod Algorithm=\"http://www.w3.org/TR/2001/REC-xml-c14n-20010315#WithComments\"/>"
-                        + "      <ds:SignatureMethod Algorithm=\"http://www.w3.org/2001/04/xmldsig-more#rsa-sha256\"/>"
+                        + "      <ds:SignatureMethod Algorithm=\"http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha384\"/>"
                         + "      <ds:Reference URI=\"\">"
                         + "        <ds:DigestMethod Algorithm=\"http://www.w3.org/2001/04/xmlenc#sha256\"/>"
                         + "        <ds:DigestValue>AAAA</ds:DigestValue>"

@@ -52,7 +52,7 @@
     <env name="LOG_PATH"     value="%BASE%\logs" />
     <env name="LOG_LEVEL"    value="INFO" />
     <!-- Production'da SPRING_PROFILES_ACTIVE BOŞ. Test için:
-         <env name="SPRING_PROFILES_ACTIVE" value="local,pfx-kurum01-rsa2048" /> -->
+         <env name="SPRING_PROFILES_ACTIVE" value="local,pfx-kurum17-ec384" /> -->
 
     <!-- PFX senaryosu (örnek — gerçek değerleri Install-Service.ps1 yazar) -->
     <!-- <env name="PFX_PATH"          value="C:\ProgramData\mersel-dss-signer\certs\production.pfx" /> -->

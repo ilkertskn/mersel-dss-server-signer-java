@@ -60,7 +60,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * <h3>Tag stratejisi</h3>
  * <p>{@code "verifier-e2e"} — Docker tabanlı verifier-api gerekli;
- * single RSA PFX × JCA (SHA-1 zorlandığı için backend çeşitliliği değer
+ * single EC PFX × JCA (SHA-1 zorlandığı için backend çeşitliliği değer
  * eklemez).</p>
  */
 @ExtendWith(SignedArtifactExporter.class)
@@ -132,7 +132,7 @@ class XAdESSha1LegacyE2ETest extends AbstractVerifierE2ETest {
     }
 
     /**
-     * DSS XAdESService'i SHA-1 + RSA_SHA1 ile çağırır. PFX/JCA yolu;
+     * DSS XAdESService'i SHA-1 + ECDSA_SHA1 ile çağırır. PFX/JCA yolu;
      * HSM ile aynı kontratı test etmek değil amaç (zaten DSS yolu ortak).
      */
     private static byte[] signWithSha1() {
@@ -150,9 +150,9 @@ class XAdESSha1LegacyE2ETest extends AbstractVerifierE2ETest {
         XAdESSignatureParameters params = new XAdESSignatureParameters();
         params.setSignatureLevel(SignatureLevel.XAdES_BASELINE_B);
         params.setSignaturePackaging(SignaturePackaging.ENVELOPED);
-        // ANA TWIST: SHA-1 hash + RSA-SHA1 imza algoritması zorla.
+        // ANA TWIST: SHA-1 hash + ECDSA-SHA1 imza algoritması zorla.
         params.setDigestAlgorithm(DigestAlgorithm.SHA1);
-        params.setEncryptionAlgorithm(eu.europa.esig.dss.enumerations.EncryptionAlgorithm.RSA);
+        params.setEncryptionAlgorithm(eu.europa.esig.dss.enumerations.EncryptionAlgorithm.ECDSA);
 
         params.setSigningCertificate(defaultMaterial.getPrimaryCertificateToken());
         List<eu.europa.esig.dss.model.x509.CertificateToken> chain =
@@ -160,10 +160,10 @@ class XAdESSha1LegacyE2ETest extends AbstractVerifierE2ETest {
         params.setCertificateChain(chain);
 
         ToBeSigned tbs = dssXadesService.getDataToSign(original, params);
-        // SignatureAlgorithm.RSA_SHA1 → SigningMaterial bunu PKCS#1 v1.5 RSA-SHA1
-        // olarak imzalar; ECDSA / EdDSA olsaydı yine SHA-1 forced ama PFX'imiz RSA.
-        byte[] rawSig = defaultMaterial.sign(tbs.getBytes(), SignatureAlgorithm.RSA_SHA1);
-        SignatureValue sv = new SignatureValue(SignatureAlgorithm.RSA_SHA1, rawSig);
+        // SignatureAlgorithm.ECDSA_SHA1 → SigningMaterial bunu ECDSA-SHA1
+        // olarak imzalar (DER SEQUENCE); PFX'imiz EC-P384.
+        byte[] rawSig = defaultMaterial.sign(tbs.getBytes(), SignatureAlgorithm.ECDSA_SHA1);
+        SignatureValue sv = new SignatureValue(SignatureAlgorithm.ECDSA_SHA1, rawSig);
 
         DSSDocument signed = dssXadesService.signDocument(original, params, sv);
         // Java 8 — InputStream.readAllBytes() Java 9+; commons-io zaten classpath'te.

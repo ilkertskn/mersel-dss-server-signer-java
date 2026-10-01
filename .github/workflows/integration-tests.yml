@@ -4,63 +4,74 @@ name: Integration Tests
 # testlerini koşturur. Native bağımlılık (SoftHSM2 / Docker) gerektirdiği için
 # ana CI'dan ayrı bir job dosyasında tutuluyor.
 #
+# Sayılar 2026-10 EC-P384 test sertifikası setine göredir (3 pozitif PFX;
+# RSA-2048 seti Kamu SM'de expire olduğu için kaldırıldı — bkz. CHANGELOG).
+#
 # Job'lar:
-#   - verifier-e2e: 277 imzala-doğrula roundtrip testi:
-#       - 20 CAdES (5 PFX × 2 backend × 2 mode: attached/detached)
-#       -  7 CAdES binary fixture çeşitliliği (CAdESBinaryFixturesE2ETest):
-#                    5 positive (sample.txt UTF-8 + sample.bin random +
-#                    utf16-text + zip-archive + docx-sample) + 1 empty
-#                    input contract + 1 large-10mb conditional. Tek RSA
+#   - verifier-e2e: 189 imzala-doğrula roundtrip testi:
+#       - 12 CAdES (3 PFX × 2 backend × 2 mode: attached/detached)
+#       -  8 CAdES binary fixture çeşitliliği (CAdESBinaryVariationsE2ETest):
+#                    4 fixture × ATTACHED + 4 fixture × DETACHED. Tek EC
 #                    PFX × JCA backend (smart matrix — key-tipi
 #                    çeşitliliği zaten CAdESSignAndVerifyE2ETest'te).
-#                    LARGE fixture .gitignore'da; CI default'unda
-#                    Assumption skip — generate etmek için job step
-#                    eklenebilir.
-#       - 10 PAdES (5 PFX × 2 backend)
-#       -  8 PAdES PDF yapısal fixture (PAdESDocumentFixturesE2ETest):
-#                    5 positive (with-form-fields + with-attachment +
-#                    turkish-chars + landscape-a3 + scan-image-only) +
-#                    1 cosign (already-signed.pdf'e ikinci imza,
-#                    appendMode=true) + 1 encrypted contract (user-password
-#                    PDF için davranış dokümante) + 1 large-50pages
-#                    conditional. Tek RSA PFX × JCA backend (smart matrix
-#                    — yapı, key-tipinden bağımsız). LARGE fixture
-#                    .gitignore'da. Fixture'lar PdfFixtureGenerator
-#                    (manuel test class) ile iText 5 üzerinden üretilir.
+#       -  6 PAdES (3 PFX × 2 backend)
+#       -  4 PAdES PDF yapısal fixture (PAdESDocumentVariationsE2ETest):
+#                    efatura-pdf + turkish-chars + landscape-a3 +
+#                    large-50pages. Tek EC PFX × JCA backend (smart matrix
+#                    — yapı, key-tipinden bağımsız).
+#       -  4 PAdES runtime senaryosu (PAdESRuntimeScenariosE2ETest):
+#                    cosign + encrypted + form-fields + attachment.
 #       -  1 VerifierContainerSmokeTest (container ayağa kalktı sanity)
-#       - 130 XAdES (5 PFX × 2 backend × 12 fixture UBL/EArchive/HR-XML/
+#       - 73 XAdES (3 PFX × 2 backend × 11 TSA-bağımsız fixture UBL/HR-XML/
 #                    large/BOM/mixed-newlines/CDATA/comments/foreign-ns/
-#                    unicode-emoji = 120 + 10 generic OtherXmlDocument):
+#                    unicode-emoji = 66 + 6 generic OtherXmlDocument +
+#                    1 XADES_A fail-fast kontratı):
 #                    tüm production XML varyasyonları + signer'ın c14n/
 #                    parsing/namespace/encoding regresyon vektörleri.
 #                    Tek source-of-truth = XadesDocumentFixture; mixed/
 #                    CDATA/comments/foreign-ns/emoji fixture'ları
 #                    scripts/generate-xades-fixture-variants.py ile
 #                    efatura.xml'den deterministic üretilir.
-#       - 90 WS-Security ana suite (5 PFX × 2 backend × 9 SOAP envelope:
+#       -  4 XAdES ECDSA P-384 e-Fatura (XAdESEcdsaP384EfaturaE2ETest):
+#                    2 EC PFX × 2 backend — raw r||s → DER dönüşüm kontratı.
+#       - 54 WS-Security ana suite (3 PFX × 2 backend × 9 SOAP envelope:
 #                    baseline 1.1/1.2 + GİB e-Fatura + WS-Addressing +
 #                    mevcut wsu:Id + multi-body + ~50KB large + MTOM/XOP +
 #                    mevcut Security header). Lokal javax.xml.crypto.
 #                    XMLSignature ile doğrulanır (DSS jenerik validator WSS
 #                    KeyInfo→STR→BST resolve edemiyor; verifier-api bypass).
-#       -  3 WS-Security davranış kontratı (RSA PFX × JCA, structural):
+#       -  3 WS-Security davranış kontratı (EC PFX × JCA, structural):
 #                    Body wsu:Id override, WS-Addressing preservation,
 #                    Security append-not-overwrite. PFX/backend matrislemesi
 #                    yok — kontrat XML davranışı, key-tipinden bağımsız.
-#       -  6 NEGATIF testler (sign+tamper+verify-must-fail):
+#       -  1 WS-Security concurrency kontratı (10 paralel WSS imzası).
+#       - 12 NEGATIF lifecycle (CertificateLifecycleNegativeE2ETest):
+#                    3 negatif PFX (revoked/expired/suspended EC-384) ×
+#                    4 format (XAdES/CAdES/PAdES/WSS) — imza matematiksel
+#                    doğru ama sertifika lifecycle bozuk; verifier reddetmeli.
+#                    (EXPIRED × PAdES kombinasyonu DSS sign-time reject
+#                    üretir → test kontratı gereği 1 iterasyon skip olur.)
+#       -  7 NEGATIF testler (sign+tamper+verify-must-fail):
 #          * 3 XAdES (XAdESNegativeE2ETest): wrap-attack, tampered-after-sign,
 #            signature-value bit-flip — runtime sign + DOM mutation.
 #          * 1 PAdES (PAdESTamperedE2ETest): ByteRange içinde byte flip.
 #          * 1 CAdES (CAdESTamperedE2ETest): detached payload byte flip.
 #          * 1 XAdES SHA-1 legacy (XAdESSha1LegacyE2ETest): üçüncü-taraf
 #            SHA-1 imzalı belge verifier policy'sinde reject veya warn.
-#          Hepsi tek RSA PFX × JCA backend — tamper davranışı XML/PDF-level,
+#          * 1 XAdES pre-signed fixture (XAdESPreSignedFixtureNegativeE2ETest):
+#            geçersiz imzalı fixture verifier'da reddedilmeli.
+#          Hepsi tek EC PFX × JCA backend — tamper davranışı XML/PDF-level,
 #          key-tipinden bağımsız.
+#     NOT: XadesSoftHsmVerifierE2ETest AbstractVerifierE2ETest'ten kalıtsal
+#     verifier-e2e tag'i taşıdığı için rapor glob'una düşer; bu job'da
+#     SoftHSM2 kurulu olmadığından @BeforeAll assumption ile 12 iterasyon
+#     skip olarak raporlanır (tests sayacına dahildir). Bu yüzden XML
+#     toplamı ~201 çıkar; aşağıdaki 189 kontrolü minimum sınırdır.
 #     Native PKCS#11 yok, sadece Docker yeter (Testcontainers
 #     verifier-api container'ını ayağa kaldırır; WS-Security alt-suite'i
 #     Docker'a bağımlı değildir).
 #     **Verifier image stratejisi**: GHCR `:main` tag'i kullanılır; eğer
-#     repo'nun signer-strict policy mimarisini içeren versiyon GHCR'a henüz
+#     repo'nun signer-strict policy mimarisini içeren versiyonu GHCR'a henüz
 #     push edilmemişse, workflow_dispatch'ten `verifier_image_source=build`
 #     seçilerek sibling repo'dan source build yapılabilir. Default
 #     `auto`: PR/scheduled koşumlarında GHCR'dan, manuel tetiklemede tercihe
@@ -68,14 +79,15 @@ name: Integration Tests
 #
 #   - pkcs11-integration: SoftHSM2 + OpenSC + Docker kullanarak üç test sınıfını
 #     birden koşturur (üçünün de @Tag("pkcs11-integration") etiketi var):
-#       1) SoftHsm2Pkcs11IntegrationTest        → 6 parametrize iterasyon
-#          (5 raw imza + 1 H1 paralel sign kontrat testi, her PfxTestKey için)
-#       2) HashSignSoftHsm2IntegrationTest      → 7 parametrize iterasyon
-#          (5 pre-hashed digest roundtrip + 2 validation; /v1/hashsign yolunu
+#       1) SoftHsm2Pkcs11IntegrationTest        → 5 iterasyon
+#          (3 parametrize raw imza + force-login e2e + H1 paralel sign
+#          kontrat testi)
+#       2) HashSignSoftHsm2IntegrationTest      → 5 parametrize iterasyon
+#          (3 pre-hashed digest roundtrip + 2 validation; /v1/hashsign yolunu
 #          gerçek SoftHSM2 + IAIK PKCS#11 + libsofthsm2 stack'inde doğrular —
 #          mock fixture'larla atlanan CKM_RSA_PKCS / CKM_ECDSA mekanizma yolu).
-#       3) XadesSoftHsmVerifierE2ETest          → 20 parametrize iterasyon
-#          (5 PFX × 4 XAdES fixture, gerçek HSM + DSS verifier API roundtrip).
+#       3) XadesSoftHsmVerifierE2ETest          → 12 parametrize iterasyon
+#          (3 PFX × 4 XAdES fixture, gerçek HSM + DSS verifier API roundtrip).
 #          NOT: 0.7.0'da EARSIV_RAPORU TSA bağımlılığı nedeniyle
 #          XadesDocumentFixture.standardFixtures()'tan çıkarıldı; 5 → 4.
 #     ubuntu-latest runner'da Docker zaten mevcut → Testcontainers ile
@@ -107,51 +119,56 @@ concurrency:
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────
-  # verifier-e2e: 277 sign+verify roundtrip test:
-  #    20 = CAdES (5 PFX × 2 backend × 2 mode)         → verifier-api Docker
-  #     7 = CAdES binary fixture çeşitliliği (CAdESBinaryFixturesE2ETest):
-  #         5 positive (sample.txt + sample.bin + utf16-text + zip-archive
-  #         + docx-sample) — fixture'lar
+  # verifier-e2e: 189 sign+verify roundtrip test:
+  #    12 = CAdES (3 PFX × 2 backend × 2 mode)         → verifier-api Docker
+  #     8 = CAdES binary fixture çeşitliliği (CAdESBinaryVariationsE2ETest):
+  #         4 fixture × ATTACHED + 4 fixture × DETACHED — fixture'lar
   #         resources/test-fixtures/cades/ altında deterministic üretilir
-  #         (scripts/generate-cades-fixtures.py). + 1 empty input contract
-  #         test (signer'ın 0-byte davranışını dokümante eder, build
-  #         kırıcı değil). + 1 LARGE 10MB perf test (.gitignore;
-  #         Assumption ile skip — CI'da generate etmek için ek step
-  #         eklenebilir).
-  #    10 = PAdES (5 PFX × 2 backend)                  → verifier-api Docker
-  #     8 = PAdES PDF yapısal fixture (PAdESDocumentFixturesE2ETest):
-  #         5 positive (with-form-fields, with-attachment, turkish-chars,
-  #         landscape-a3, scan-image-only) + 1 cosign (already-signed.pdf
-  #         + appendMode=true → ≥2 valid signature) + 1 encrypted contract
-  #         (user-password PDF → davranış log'lanır, build kırıcı değil)
-  #         + 1 large-50pages perf (conditional; LARGE fixture .gitignore'da,
-  #         yoksa Assumption.skip). Fixture'lar PdfFixtureGenerator manuel
-  #         test class'ı ile iText 5 üzerinden üretilir.
+  #         (scripts/generate-cades-fixtures.py). EMPTY_BIN (0 byte) özel
+  #         davranış: signer empty input'a hata fırlatmalı (production
+  #         kontratı), test onun yerine assertion farklı.
+  #     6 = PAdES (3 PFX × 2 backend)                  → verifier-api Docker
+  #     4 = PAdES PDF yapısal fixture (PAdESDocumentVariationsE2ETest):
+  #         efatura-pdf, turkish-chars, landscape-a3, large-50pages —
+  #         tek EC PFX × JCA (yapı, key-tipinden bağımsız).
+  #     4 = PAdES runtime senaryoları (PAdESRuntimeScenariosE2ETest):
+  #         cosign + encrypted + form-fields + attachment.
   #     1 = VerifierContainerSmokeTest                 → container health
-  #   130 = XAdES — ana suite, tek matrix:
-  #         5 PFX × 2 backend × {12 fixture: UBL e-Fatura/e-İrsaliye/
-  #         e-Müstahsil/EArchive/HR-XML/Large/BOM/mixed-newlines/CDATA/
-  #         comments/foreign-ns-prefix/unicode-emoji = 120} + 10 generic
-  #         OtherXmlDocument. Tek source-of-truth = XadesDocumentFixture;
-  #         5 yeni varyant (mixed-newlines, CDATA, comments, foreign-ns,
-  #         emoji) scripts/generate-xades-fixture-variants.py ile
+  #    73 = XAdES — ana suite, tek matrix:
+  #         3 PFX × 2 backend × {11 TSA-bağımsız fixture: UBL e-Fatura/
+  #         e-İrsaliye/e-Müstahsil/HR-XML/Large/BOM/mixed-newlines/CDATA/
+  #         comments/foreign-ns-prefix/unicode-emoji = 66} + 6 generic
+  #         OtherXmlDocument + 1 XADES_A fail-fast kontratı. Tek
+  #         source-of-truth = XadesDocumentFixture; 5 yeni varyant
+  #         (mixed-newlines, CDATA, comments, foreign-ns, emoji)
+  #         scripts/generate-xades-fixture-variants.py ile
   #         efatura.xml'den deterministic üretilir.
-  #    90 = WS-Security ana matrix:
-  #         5 PFX × 2 backend × 9 SOAP envelope (2 baseline + 4 production
+  #     4 = XAdES ECDSA P-384 e-Fatura (XAdESEcdsaP384EfaturaE2ETest):
+  #         2 EC PFX × 2 backend — PKCS#11 raw r||s → DER dönüşüm kontratı.
+  #    54 = WS-Security ana matrix:
+  #         3 PFX × 2 backend × 9 SOAP envelope (2 baseline + 4 production
   #         parity + 3 contract) → lokal javax.xml.crypto.XMLSignature
   #         (verifier-api WSS-aware değil; DSS jenerik validator key-info
   #         içinde STR→BST'yi resolve edemiyor. Detay
   #         WsSecurityLocalXmlDsigVerifier sınıf Javadoc'unda.)
-  #     3 = WS-Security davranış kontratları (RSA PFX × JCA, structural):
+  #     3 = WS-Security davranış kontratları (EC PFX × JCA, structural):
   #         WsSecurityContractE2ETest → wsu:Id override (security-critical),
   #         WS-Addressing preservation, Security append-not-overwrite.
-  #     6 = Negatif testler (sign+tamper+verify-must-fail):
+  #     1 = WsSecurityConcurrencyContractTest (10 paralel WSS imzası)
+  #    12 = Negatif sertifika lifecycle (CertificateLifecycleNegativeE2ETest):
+  #         3 negatif PFX (revoked/expired/suspended EC-384) × 4 format
+  #         (XAdES/CAdES/PAdES/WSS) — imza doğru, sertifika bozuk;
+  #         verifier reddetmeli. (EXPIRED × PAdES DSS sign-time reject
+  #         üretir → 1 iterasyon kontrat gereği skip olur.)
+  #     7 = Negatif testler (sign+tamper+verify-must-fail):
   #         XAdESNegativeE2ETest (3: wrap-attack, tampered-after-sign,
   #         signature-value bit-flip) + PAdESTamperedE2ETest (1: ByteRange
   #         byte flip) + CAdESTamperedE2ETest (1: detached payload byte flip)
   #         + XAdESSha1LegacyE2ETest (1: SHA-1 imzalı XAdES policy reject
-  #         veya warning beklentisi). Tüm negatif testler tek RSA PFX × JCA
-  #         backend — tamper davranışı XML/PDF-level, key-tipinden bağımsız.
+  #         veya warning beklentisi) + XAdESPreSignedFixtureNegativeE2ETest
+  #         (1: geçersiz pre-signed fixture reddedilmeli). Tüm negatif
+  #         testler tek EC PFX × JCA backend — tamper davranışı XML/PDF-level,
+  #         key-tipinden bağımsız.
   # Native PKCS#11 gerektirmez; PfxBackedPkcs11Signer ile simulated HSM
   # üzerinden de imzalama yapar. Internet bağlantısı zorunlu (verifier
   # online OCSP/CRL + KamuSM root XML deposu için).
@@ -224,28 +241,34 @@ jobs:
             -DexcludedGroups= \
             -DverifierImage="$VERIFIER_IMAGE"
 
-      # KRİTİK: 277 testin gerçekten koştuğunu doğrula. Image pull/build
+      # KRİTİK: 189 testin gerçekten koştuğunu doğrula. Image pull/build
       # başarısızlığında Testcontainers init hatası verir, surefire raporu
       # belki hiç oluşmaz veya 0 test gösterir; bu durumu sessiz "yeşil"
       # olarak bırakmayalım.
       #
-      # Breakdown:
-      #   VerifierContainerSmokeTest          1
-      #   CAdESSignAndVerifyE2ETest          20 (5 PFX × 2 backend × 2 mode)
-      #   CAdESBinaryVariationsE2ETest        8 (4 fixture × ATTACHED + 4 fixture × DETACHED)
-      #   PAdESSignAndVerifyE2ETest          10 (5 PFX × 2 backend)
-      #   PAdESDocumentVariationsE2ETest      4 (1 PFX × 1 backend × 4 PDF fixture)
-      #   PAdESRuntimeScenariosE2ETest        4 (cosign + encrypted + form-fields + attachment)
-      #   XAdESSignAndVerifyE2ETest         130 (5 PFX × 2 backend × 12 fixture + 10 generic)
-      #   WsSecuritySignAndLocalVerifyE2ETest 90 (5 PFX × 2 backend × 9 SOAP envelope)
-      #   WsSecurityContractE2ETest           3 (structural kontrat, key-agnostic)
-      #   WsSecurityConcurrencyContractTest   1 (10 paralel WSS imzası)
-      #   XAdESNegativeE2ETest                3 (wrap-attack + tamper + sig-flip)
-      #   PAdESTamperedE2ETest                1 (byte-range tamper)
-      #   CAdESTamperedE2ETest                1 (detached payload tamper)
-      #   XAdESSha1LegacyE2ETest              1 (legacy SHA-1 crypto policy)
+      # Breakdown (3 pozitif EC-P384 PFX; RSA seti 2026-10'da kaldırıldı):
+      #   VerifierContainerSmokeTest           1
+      #   CAdESSignAndVerifyE2ETest           12 (3 PFX × 2 backend × 2 mode)
+      #   CAdESBinaryVariationsE2ETest         8 (4 fixture × ATTACHED + 4 fixture × DETACHED)
+      #   PAdESSignAndVerifyE2ETest            6 (3 PFX × 2 backend)
+      #   PAdESDocumentVariationsE2ETest       4 (1 PFX × 1 backend × 4 PDF fixture)
+      #   PAdESRuntimeScenariosE2ETest         4 (cosign + encrypted + form-fields + attachment)
+      #   XAdESSignAndVerifyE2ETest           73 (3 PFX × 2 backend × 11 fixture + 6 generic + 1 fail-fast)
+      #   XAdESEcdsaP384EfaturaE2ETest         4 (2 EC PFX × 2 backend)
+      #   WsSecuritySignAndLocalVerifyE2ETest 54 (3 PFX × 2 backend × 9 SOAP envelope)
+      #   WsSecurityContractE2ETest            3 (structural kontrat, key-agnostic)
+      #   WsSecurityConcurrencyContractTest    1 (10 paralel WSS imzası)
+      #   CertificateLifecycleNegativeE2ETest 12 (3 negatif PFX × 4 format)
+      #   XAdESNegativeE2ETest                 3 (wrap-attack + tamper + sig-flip)
+      #   PAdESTamperedE2ETest                 1 (byte-range tamper)
+      #   CAdESTamperedE2ETest                 1 (detached payload tamper)
+      #   XAdESSha1LegacyE2ETest               1 (legacy SHA-1 crypto policy)
+      #   XAdESPreSignedFixtureNegativeE2ETest 1 (geçersiz pre-signed fixture)
       #                                    ────
-      #                                     277
+      #                                     189
+      # NOT: XadesSoftHsmVerifierE2ETest (12 iterasyon) kalıtsal verifier-e2e
+      # tag'i taşır; bu job'da SoftHSM2 kurulu olmadığından skip olarak
+      # raporlanır ve tests toplamına +12 ekler. Kontrol minimum sınırdır.
       - name: Verify expected verifier-e2e test count
         run: |
           set -euo pipefail
@@ -256,7 +279,7 @@ jobs:
             | xargs -0 grep -hoE 'tests="[0-9]+"' \
             | grep -oE '[0-9]+' \
             | awk '{s+=$1} END {print s+0}')
-          expected=277
+          expected=189
           echo "Run total: $total (expected: $expected)"
           if [ "$total" -lt "$expected" ]; then
             echo "❌ Beklenen en az $expected verifier-e2e testi koşmadı (gerçek: $total)"
@@ -331,10 +354,11 @@ jobs:
           # Testcontainers verifier-api image pull'unu hızlandır (parallel layer fetch).
           TESTCONTAINERS_RYUK_DISABLED: "false"
         run: |
-          # Tag-based filter. İki test class'ı da @Tag("pkcs11-integration")
-          # taşıdığı için tek mvn çağrısında her ikisi de koşar:
-          #   - SoftHsm2Pkcs11IntegrationTest        (5 raw sign iterasyonu)
-          #   - XadesSoftHsmVerifierE2ETest          (20 E2E iterasyon)
+          # Tag-based filter. Üç test class'ı da @Tag("pkcs11-integration")
+          # taşıdığı için tek mvn çağrısında hepsi koşar:
+          #   - SoftHsm2Pkcs11IntegrationTest        (5 sign iterasyonu)
+          #   - HashSignSoftHsm2IntegrationTest      (5 pre-hashed digest iterasyonu)
+          #   - XadesSoftHsmVerifierE2ETest          (12 E2E iterasyon)
           # -Dtest filter parametrize testlerde Surefire 2.22.2 ile sorunlu.
           mvn test -B \
             -Dgroups=pkcs11-integration \
@@ -344,7 +368,7 @@ jobs:
       # skip olup workflow'un yine de "yeşil" görünmesi gerçek bir regression
       # riskidir. Aşağıdaki adım her bir test sınıfının beklenen iterasyon
       # sayısında gerçekten koştuğunu explicit doğrular.
-      - name: Verify SoftHsm2Pkcs11IntegrationTest (6 raw signing iterations)
+      - name: Verify SoftHsm2Pkcs11IntegrationTest (5 signing iterations)
         run: |
           set -euo pipefail
           report="target/surefire-reports/io.mersel.dss.signer.api.services.keystore.iaik.SoftHsm2Pkcs11IntegrationTest.txt"
@@ -357,13 +381,13 @@ jobs:
           cat "$report"
           echo "==================="
 
-          # 5 PfxTestKey değeri × 1 parametrize sign + 1 H1 paralel sign kontrat testi.
-          expected=6
+          # 3 PfxTestKey × 1 parametrize sign + force-login e2e + H1 paralel sign = 5.
+          expected=5
           actual_run=$(grep -oE 'Tests run: [0-9]+' "$report" | head -1 | grep -oE '[0-9]+' || echo "0")
           actual_skipped=$(grep -oE 'Skipped: [0-9]+' "$report" | head -1 | grep -oE '[0-9]+' || echo "0")
 
           if [ "$actual_run" != "$expected" ]; then
-            echo "❌ Beklenen: $expected (5 sequential + 1 paralel) sign iterasyonu, Gerçek: $actual_run"
+            echo "❌ Beklenen: $expected (3 sequential + force-login + paralel) sign iterasyonu, Gerçek: $actual_run"
             exit 1
           fi
           if [ "$actual_skipped" != "0" ]; then
@@ -372,7 +396,7 @@ jobs:
           fi
           echo "✅ SoftHsm2Pkcs11IntegrationTest: $expected iterasyon, hepsi koştu"
 
-      - name: Verify HashSignSoftHsm2IntegrationTest (7 pre-hashed digest iterations)
+      - name: Verify HashSignSoftHsm2IntegrationTest (5 pre-hashed digest iterations)
         run: |
           set -euo pipefail
           report="target/surefire-reports/io.mersel.dss.signer.api.services.keystore.iaik.HashSignSoftHsm2IntegrationTest.txt"
@@ -385,16 +409,16 @@ jobs:
           cat "$report"
           echo "==================="
 
-          # 5 PfxTestKey × 1 roundtrip + 2 PfxTestKey × 1 validation = 7 iterasyon.
+          # 3 PfxTestKey × 1 roundtrip + 2 PfxTestKey × 1 validation = 5 iterasyon.
           # /v1/hashsign endpoint'inin gerçek SoftHSM2 + IAIK PKCS#11 + libsofthsm2
           # stack'inde çalıştığını bire bir doğrular (mock fixture'larla atlanan
           # CKM_RSA_PKCS / CKM_ECDSA mekanizma yolunu kapsar).
-          expected=7
+          expected=5
           actual_run=$(grep -oE 'Tests run: [0-9]+' "$report" | head -1 | grep -oE '[0-9]+' || echo "0")
           actual_skipped=$(grep -oE 'Skipped: [0-9]+' "$report" | head -1 | grep -oE '[0-9]+' || echo "0")
 
           if [ "$actual_run" != "$expected" ]; then
-            echo "❌ Beklenen: $expected (5 roundtrip + 2 validation) iterasyonu, Gerçek: $actual_run"
+            echo "❌ Beklenen: $expected (3 roundtrip + 2 validation) iterasyonu, Gerçek: $actual_run"
             exit 1
           fi
           if [ "$actual_skipped" != "0" ]; then
@@ -403,7 +427,7 @@ jobs:
           fi
           echo "✅ HashSignSoftHsm2IntegrationTest: $expected iterasyon, hepsi koştu"
 
-      - name: Verify XadesSoftHsmVerifierE2ETest (20 HSM+verifier iterations)
+      - name: Verify XadesSoftHsmVerifierE2ETest (12 HSM+verifier iterations)
         run: |
           set -euo pipefail
           report="target/surefire-reports/io.mersel.dss.signer.api.e2e.verifier.XadesSoftHsmVerifierE2ETest.txt"
@@ -418,14 +442,14 @@ jobs:
 
           # 0.7.0'da XadesDocumentFixture.standardFixtures() EARSIV_RAPORU'yu
           # hariç tuttu (TSA bağımlılığı; XAdESLevelUpgradeService fail-fast).
-          # 5 PfxTestKey × 4 fixture = 20 iterasyon.
-          expected=20
+          # 3 PfxTestKey × 4 fixture = 12 iterasyon.
+          expected=12
           actual_run=$(grep -oE 'Tests run: [0-9]+' "$report" | head -1 | grep -oE '[0-9]+' || echo "0")
           actual_skipped=$(grep -oE 'Skipped: [0-9]+' "$report" | head -1 | grep -oE '[0-9]+' || echo "0")
 
           if [ "$actual_run" != "$expected" ]; then
             echo "❌ Beklenen: $expected HSM+verifier iterasyonu, Gerçek: $actual_run"
-            echo "   (5 PfxTestKey × 4 XadesDocumentFixture = 20)"
+            echo "   (3 PfxTestKey × 4 XadesDocumentFixture = 12)"
             exit 1
           fi
           if [ "$actual_skipped" != "0" ]; then

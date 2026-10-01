@@ -90,3 +90,11 @@ clients/dotnet-client/obj/
 # (.run/) tertemiz/değişmez kalır.
 # Şablon: `local-secrets.properties.example` (commitlenir).
 /local-secrets.properties
+
+# ─── Sansec HSM docker dev profili (bkz. docs/RUN_PROFILES.md §8) ──────────
+# HSM PIN + host lib yolu (HSM_LIB_DIR) burada yaşar; ASLA commit edilmez.
+# Şablon: devops/docker/.env.hsm-dev.example (commitlenir).
+/devops/docker/.env.hsm-dev
+# .so'ların container'da ürettiği log + persistent cache (HSM_LIB_DIR'e yazılır);
+# repo içinde tutulursa diye explicit exclude:
+/devops/docker/signer-logs/

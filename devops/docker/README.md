@@ -11,8 +11,8 @@ devops/docker/
 ├── docker-compose.yml               # sign-api + prometheus + grafana (+ alertmanager profile)
 ├── .dockerignore
 ├── .env.example                     # Production env şablonu
-├── .env.test.kurum1                 # Test Kurum 1 (RSA-2048, PIN 614573)
-├── .env -> .env.test.kurum1         # Symlink → default development env
+├── .env.test.kurum17                # Test Kurum 17 (EC-384, PIN 328829)
+├── .env -> .env.test.kurum17        # Symlink → default development env
 ├── unix/start-test-kurum.sh         # Parametreli helper (./start-test-kurum.sh 2 ec384)
 ├── windows/start-test-kurum.ps1     # PowerShell muadili
 └── README.md
@@ -31,22 +31,20 @@ cd devops/docker
 docker-compose up -d
 ```
 
-Varsayılan olarak `.env -> .env.test.kurum1` symlink'i devreye girer (RSA-2048 test PFX, network kapalı).
+Varsayılan olarak `.env -> .env.test.kurum17` symlink'i devreye girer (EC-384 test PFX, network kapalı).
 
 ### Parametreli helper ile farklı kurum / algoritma
 
 ```bash
 # Unix/Linux/macOS
-./unix/start-test-kurum.sh 1                  # Kurum 1 RSA-2048 (default)
-./unix/start-test-kurum.sh 2 rsa              # Kurum 2 RSA-2048
-./unix/start-test-kurum.sh 2 ec384            # Kurum 2 EC-P384
-./unix/start-test-kurum.sh 3 rsa              # Kurum 3 RSA-2048
-./unix/start-test-kurum.sh 3 ec384            # Kurum 3 EC-P384
+./unix/start-test-kurum.sh 17                 # Kurum 17 EC-P384 (default)
+./unix/start-test-kurum.sh 2                  # Kurum 2 EC-P384
+./unix/start-test-kurum.sh 3                  # Kurum 3 EC-P384
 
 # Windows (PowerShell)
-.\windows\start-test-kurum.ps1 1
-.\windows\start-test-kurum.ps1 2 ec384
-.\windows\start-test-kurum.ps1 3 rsa
+.\windows\start-test-kurum.ps1 17
+.\windows\start-test-kurum.ps1 2
+.\windows\start-test-kurum.ps1 3
 ```
 
 Script `.env.temp` üretir ve `docker-compose --env-file .env.temp up -d` çağırır. Compose'un kendi env dosyasını kirletmez.
@@ -92,11 +90,12 @@ volumes:
 
 | Kurum | Algoritma | PFX | PIN |
 |---|---|---|---|
-| Kurum 1 | RSA-2048 | `testkurum01_rsa2048@test.com.tr_614573.pfx` | `614573` |
-| Kurum 2 | RSA-2048 | `testkurum02_rsa2048@sm.gov.tr_059025.pfx` | `059025` |
+| Kurum 17 | EC-P384 | `testkurum17_ec384@test.gov.tr_328829.pfx` | `328829` |
 | Kurum 2 | EC-P384 | `testkurum02_ec384@test.com.tr_825095.pfx` | `825095` |
-| Kurum 3 | RSA-2048 | `testkurum03_rsa2048@test.com.tr_181193.pfx` | `181193` |
 | Kurum 3 | EC-P384 | `testkurum03_ec384@test.com.tr_540425.pfx` | `540425` |
+
+> 2026-10: RSA-2048 test sertifikaları Kamu SM tarafından yenilenmediği için
+> kaldırıldı (geçerlilikleri doldu). EC-P384 seti 2028-05'e kadar geçerli.
 
 Yerleşim: `resources/test-certs/` — Dockerfile build-time'da `/app/test-certs/` altına kopyalar (development image için). Production'da kendi PFX'inizi bind-mount edersiniz.
 

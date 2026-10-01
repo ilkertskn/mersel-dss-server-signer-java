@@ -25,27 +25,41 @@ namespace MERSEL.Services.DssSigner.Client.Models;
 /// proaktif yükseltme yapmaz; "implicit upgrade" davranışı v0.x serisinde
 /// kaldırılmıştır.
 /// </para>
-/// <para>
-/// <b>DSS Eşlemesi</b>:
-/// <list type="bullet">
-///   <item><c>XADES_BES</c> → <c>SignatureLevel.XAdES_BASELINE_B</c></item>
-///   <item><c>XADES_A</c>   → <c>SignatureLevel.XAdES_BASELINE_LTA</c>
-///         (legacy ETSI TS 101 903 terminolojisindeki XAdES-A profili)</item>
-/// </list>
-/// </para>
-/// </remarks>
-[JsonConverter(typeof(JsonStringEnumConverter))]
-public enum XadesSignatureLevel
-{
-    /// <summary>
-    /// Baseline-B profili: yalnızca <c>ds:Signature</c> ve <c>xades:SignedProperties</c>.
-    /// Hiçbir TSA çağrısı yapılmaz; kontör harcanmaz. e-Fatura, e-Arşiv faturası,
-    /// irsaliye, uygulama yanıtı, HrXml, e-Adisyon raporu, e-Döviz raporu (iptal hariç)
-    /// vb. timestamp gerektirmeyen tüm akışlar için. <b>API'nin varsayılan değeri.</b>
-    /// </summary>
-    XADES_BES,
+    /// <para>
+    /// <b>DSS Eşlemesi</b>:
+    /// <list type="bullet">
+    ///   <item><c>XADES_BES</c> → <c>SignatureLevel.XAdES_BASELINE_B</c></item>
+    ///   <item><c>XADES_T</c>   → signature timestamp (XAdESLevelBaselineT)</item>
+    ///   <item><c>XADES_LT</c>  → legacy XAdES-X-L (CertificateValues + RevocationValues)</item>
+    ///   <item><c>XADES_A</c>   → <c>SignatureLevel.XAdES_BASELINE_LTA</c>
+    ///         (legacy ETSI TS 101 903 terminolojisindeki XAdES-A profili)</item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum XadesSignatureLevel
+    {
+        /// <summary>
+        /// Baseline-B profili: yalnızca <c>ds:Signature</c> ve <c>xades:SignedProperties</c>.
+        /// Hiçbir TSA çağrısı yapılmaz; kontör harcanmaz. e-Fatura, e-Arşiv faturası,
+        /// irsaliye, uygulama yanıtı, HrXml, e-Adisyon raporu, e-Döviz raporu (iptal hariç)
+        /// vb. timestamp gerektirmeyen tüm akışlar için. <b>API'nin varsayılan değeri.</b>
+        /// </summary>
+        XADES_BES,
 
-    /// <summary>
+        /// <summary>
+        /// XAdES-T profili: baseline imzaya bir <c>SignatureTimeStamp</c> eklenir.
+        /// TSA gerekir; yapılandırılmamışsa istek <c>TIMESTAMP_ERROR</c> ile reddedilir.
+        /// </summary>
+        XADES_T,
+
+        /// <summary>
+        /// XAdES-LT profili (legacy XAdES-X-L): imza + signature timestamp + uzun dönem
+        /// doğrulama verisi (gömülü sertifika zinciri, OCSP/CRL). TSA gerekir.
+        /// </summary>
+        XADES_LT,
+
+        /// <summary>
     /// Baseline-LTA profili (legacy adıyla XAdES-A): imza + signature timestamp +
     /// archive timestamp. e-Arşiv Raporu / e-Bilet Raporu gibi arşivsel akışlar için
     /// uygundur.

@@ -100,9 +100,9 @@ class XAdESEcdsaSignatureFormatTest {
     // ana ECDSA format matriksine ait değil. JUnit 5.8 (Spring Boot 2.7
     // parent) MATCH_NONE desteklemiyor, EXCLUDE + explicit names kullanıyoruz.
     @EnumSource(value = PfxTestKey.class, mode = Mode.EXCLUDE,
-            names = {"KAMUSM_REVOKED_RSA2048", "KAMUSM_REVOKED_EC384",
-                     "KAMUSM_EXPIRED_RSA2048", "KAMUSM_EXPIRED_EC384",
-                     "KAMUSM_SUSPENDED_RSA2048", "KAMUSM_SUSPENDED_EC384"})
+            names = {"KAMUSM_REVOKED_EC384",
+                     "KAMUSM_EXPIRED_EC384",
+                     "KAMUSM_SUSPENDED_EC384"})
     @DisplayName("XAdES SignatureValue formatı XML-DSig spec'ine uygun (RSA → uzunluk korunur, ECDSA → r||s plain)")
     void signatureValueRespectsXmldsigPlainFormat(PfxTestKey key) throws Exception {
         if (service == null) {

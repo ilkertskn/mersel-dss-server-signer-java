@@ -133,7 +133,9 @@ class SignatureServiceSemaphoreConcurrencyTest {
 
         Semaphore semaphore = new Semaphore(PERMITS);
         CAdESSignatureService service = new CAdESSignatureService(
-            dssService, cryptoSigner, digestResolver, semaphore);
+            dssService, cryptoSigner, digestResolver,
+            new io.mersel.dss.signer.api.services.timestamp.TimestampConfigurationService("", "", "", false),
+            semaphore);
 
         SigningMaterial material = new SigningMaterial(
             testKeyPair.getPrivate(),
@@ -208,7 +210,9 @@ class SignatureServiceSemaphoreConcurrencyTest {
 
         Semaphore semaphore = new Semaphore(PERMITS);
         CAdESSignatureService service = new CAdESSignatureService(
-            dssService, cryptoSigner, digestResolver, semaphore);
+            dssService, cryptoSigner, digestResolver,
+            new io.mersel.dss.signer.api.services.timestamp.TimestampConfigurationService("", "", "", false),
+            semaphore);
 
         SigningMaterial material = new SigningMaterial(
             testKeyPair.getPrivate(), testCertificate,
@@ -315,6 +319,8 @@ class SignatureServiceSemaphoreConcurrencyTest {
         when(digestResolver.resolveDigestAlgorithm(any(X509Certificate.class)))
             .thenReturn(DigestAlgorithm.SHA256);
 
-        return new CAdESSignatureService(dssService, cryptoSigner, digestResolver, shared);
+        return new CAdESSignatureService(dssService, cryptoSigner, digestResolver,
+            new io.mersel.dss.signer.api.services.timestamp.TimestampConfigurationService("", "", "", false),
+            shared);
     }
 }

@@ -1,0 +1,53 @@
+# syntax=docker/dockerfile:1.6
+#
+# ════════════════════════════════════════════════════════════════════════════
+#  Dockerfile.hsm-dev — Sansec PKCS#11 (.so) IN-PROCESS geliştirme runtime'ı
+# ════════════════════════════════════════════════════════════════════════════
+#
+#  NEDEN:
+#    libupkcs11.so + libswsds.so = Linux **x86-64 ELF**. macOS (Mach-O bekler)
+#    ve Apple Silicon (arm64) JVM'i bunları JNI ile yükleyemez. Kaynak kod
+#    olmadan .dylib'e derlenemez. Bu repo'nun kanıtlanmış deseni
+#    (bkz. Dockerfile.pkcs11-tests): native lib + JVM AYNI process'te olmak
+#    zorunda → JVM'i .so ile AYNI ABI'ye (linux/amd64) taşı. Docker Desktop
+#    Apple Silicon'da bunu Rosetta/QEMU ile emüle eder; bit köprüsüne (32/64)
+#    gerek YOK, çünkü JVM ve .so ikisi de linux/amd64.
+#
+#  NE DEĞİL:
+#    Bu image production runtime'ı DEĞİLDİR (o ../docker/Dockerfile). Jar'ı
+#    İÇİNDE build ETMEZ — host'ta `mvn package` ile üretilen target/*.jar
+#    bind-mount edilir (hızlı debug döngüsü). JDWP :5005 açıktır.
+#
+#  BUILD (genelde compose otomatik yapar):
+#    docker build --platform=linux/amd64 -t mersel/dss-signer-hsm-dev:latest \
+#                 -f devops/docker/Dockerfile.hsm-dev devops/docker
+# ════════════════════════════════════════════════════════════════════════════
+
+FROM --platform=linux/amd64 eclipse-temurin:8-jdk-jammy
+
+# Sansec .so'larının runtime bağımlılıkları + teşhis aracı (pkcs11-tool):
+#   libssl3       → swsds SSL/TCP taşıması
+#   libstdc++6    → C++ ABI
+#   opensc*       → pkcs11-tool (modülü container içinde bağımsız doğrulamak için)
+#   ca-certificates → HTTPS (KamuSM/TSP vb.)
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      libssl3 \
+      libstdc++6 \
+      opensc \
+      opensc-pkcs11 \
+      ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+# Jar seçimi + başlatma mantığı ayrı script'te (tırnak cehennemi olmasın).
+COPY hsm-dev-entrypoint.sh /usr/local/bin/hsm-dev-entrypoint.sh
+RUN chmod +x /usr/local/bin/hsm-dev-entrypoint.sh
+
+# WORKDIR compose'ta /opt/hsm'e çekilir (mount edilen HSM dizini): swsds0.ini,
+# upkcs11.ini ve OBJSP02 persistent cache CWD'den okunur/yazılır.
+WORKDIR /opt/hsm
+
+EXPOSE 8085 5005
+
+ENTRYPOINT ["/usr/local/bin/hsm-dev-entrypoint.sh"]

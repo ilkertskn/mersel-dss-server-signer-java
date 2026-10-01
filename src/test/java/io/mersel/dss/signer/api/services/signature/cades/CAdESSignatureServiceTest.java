@@ -88,7 +88,9 @@ class CAdESSignatureServiceTest {
     void setUp() {
         MockitoAnnotations.openMocks(this);
         semaphore = new Semaphore(2);
-        service = new CAdESSignatureService(cadesService, cryptoSigner, digestAlgorithmResolver, semaphore);
+        service = new CAdESSignatureService(cadesService, cryptoSigner, digestAlgorithmResolver,
+                new io.mersel.dss.signer.api.services.timestamp.TimestampConfigurationService("", "", "", false),
+                semaphore);
     }
 
     private SigningMaterial createTestMaterial() {
@@ -413,6 +415,64 @@ class CAdESSignatureServiceTest {
                     () -> service.signData(new ByteArrayInputStream("test".getBytes()), false, material));
             assertSame(original, ex);
             assertEquals("HSM_ERROR", ex.getErrorCode());
+        }
+    }
+
+    /**
+     * Yeni eklenen CAdES seviyelerinin DSS {@link SignatureLevel}'a doğru
+     * eşlendiğini ve TSA gerektiren seviyelerde (T/LT/A) fail-fast davranıldığını
+     * doğrular.
+     */
+    @Nested
+    class SignatureLevelMapping {
+
+        private CAdESSignatureService serviceWithTsa(
+                io.mersel.dss.signer.api.services.timestamp.TimestampConfigurationService ts) {
+            return new CAdESSignatureService(cadesService, cryptoSigner, digestAlgorithmResolver, ts, semaphore);
+        }
+
+        @org.junit.jupiter.params.ParameterizedTest
+        @org.junit.jupiter.params.provider.CsvSource({
+                "CADES_BES,CAdES_BASELINE_B",
+                "CADES_T,CAdES_BASELINE_T",
+                "CADES_LT,CAdES_BASELINE_LT",
+                "CADES_A,CAdES_BASELINE_LTA"
+        })
+        void shouldMapEachLevelToDssLevel(
+                io.mersel.dss.signer.api.models.enums.CadesSignatureLevel level,
+                SignatureLevel expected) throws Exception {
+            setupDefaultMocks();
+
+            // TSA mevcut: T/LT/A için fail-fast'e takılmadan param map'ini görebilelim.
+            io.mersel.dss.signer.api.services.timestamp.TimestampConfigurationService ts =
+                    mock(io.mersel.dss.signer.api.services.timestamp.TimestampConfigurationService.class);
+            when(ts.isAvailable()).thenReturn(true);
+            when(ts.getTspSource()).thenReturn(mock(eu.europa.esig.dss.service.tsp.OnlineTSPSource.class));
+            CAdESSignatureService svc = serviceWithTsa(ts);
+
+            ArgumentCaptor<CAdESSignatureParameters> paramsCaptor =
+                    ArgumentCaptor.forClass(CAdESSignatureParameters.class);
+
+            svc.signData(new ByteArrayInputStream("test".getBytes()), false,
+                    createTestMaterial(), level);
+
+            verify(cadesService).getDataToSign(any(DSSDocument.class), paramsCaptor.capture());
+            assertEquals(expected, paramsCaptor.getValue().getSignatureLevel());
+        }
+
+        @org.junit.jupiter.params.ParameterizedTest
+        @org.junit.jupiter.params.provider.EnumSource(
+                value = io.mersel.dss.signer.api.models.enums.CadesSignatureLevel.class,
+                names = {"CADES_T", "CADES_LT", "CADES_A"})
+        void tsaRequiredLevels_failFastWhenTsaMissing(
+                io.mersel.dss.signer.api.models.enums.CadesSignatureLevel level) {
+            // setUp'taki service boş TS yapılandırması ile kurulu → isAvailable()==false.
+            io.mersel.dss.signer.api.exceptions.TimestampException ex = assertThrows(
+                    io.mersel.dss.signer.api.exceptions.TimestampException.class,
+                    () -> service.signData(new ByteArrayInputStream("test".getBytes()), false,
+                            createTestMaterial(), level));
+            assertEquals("TIMESTAMP_ERROR", ex.getErrorCode());
+            assertTrue(ex.getMessage().contains(level.name()));
         }
     }
 }

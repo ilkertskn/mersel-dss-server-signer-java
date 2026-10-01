@@ -24,6 +24,8 @@ import java.util.List;
  * Command-line kullanım:
  * - java -jar mersel-dss-signer.jar                    : API sunucusunu başlatır
  * - java -jar mersel-dss-signer.jar --list-certificates : Keystore sertifikalarını listeler
+ * - java -jar mersel-dss-signer.jar --list-certificates --force-login : Önce C_Login yapıp listeler
+ *   (public objeleri login'siz göstermeyen HSM'ler için; env karşılığı PKCS11_FORCE_LOGIN=true)
  * - java -jar mersel-dss-signer.jar --help             : Yardım mesajını gösterir
  */
 @SpringBootApplication
@@ -42,7 +44,7 @@ public class SignatureApplication {
             String command = args[0];
 
             if ("--list-certificates".equals(command) || "--list-certs".equals(command)) {
-                listCertificates();
+                listCertificates(hasFlag(args, "--force-login"));
                 System.exit(0);
                 return;
             } else if ("--help".equals(command) || "-h".equals(command)) {
@@ -65,11 +67,27 @@ public class SignatureApplication {
         LOGGER.info("Mersel DSS Signer API başarıyla başlatıldı");
     }
 
+    /** CLI argümanları içinde verilen bayrağın (ilk komut hariç) olup olmadığına bakar. */
+    private static boolean hasFlag(String[] args, String flag) {
+        for (int i = 1; i < args.length; i++) {
+            if (flag.equals(args[i])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Keystore'daki sertifikaları listeler.
      * Spring context olmadan çalışır.
+     *
+     * @param forceLoginFlag {@code --force-login} CLI bayrağı verildi mi?
+     *                       Bazı HSM cihazları public objeleri (sertifika,
+     *                       public key) bile login'siz göstermez; bu bayrak
+     *                       token'a dair ilk sorgudan önce C_Login yapılmasını
+     *                       zorlar. Env karşılığı: {@code PKCS11_FORCE_LOGIN=true}.
      */
-    private static void listCertificates() {
+    private static void listCertificates(boolean forceLoginFlag) {
         System.out.println("\n🔐 Mersel DSS Signer - Certificate Lister\n");
 
         try {
@@ -81,6 +99,7 @@ public class SignatureApplication {
             // Auto-detect zaten CKR_ARGUMENTS_BAD'da devreye girer; bu env var
             // operatöre "doğrudan NULL-args'a git" demek için escape hatch.
             String pkcs11NullInitArgsStr = System.getenv("PKCS11_NULL_INIT_ARGS");
+            String pkcs11ForceLoginStr = System.getenv("PKCS11_FORCE_LOGIN");
             String pfxPath = System.getenv("PFX_PATH");
             String pin = System.getenv("CERTIFICATE_PIN");
 
@@ -109,6 +128,10 @@ public class SignatureApplication {
 
                 boolean forceNullInitArgs = "true".equalsIgnoreCase(
                     pkcs11NullInitArgsStr == null ? "" : pkcs11NullInitArgsStr.trim());
+                // Bayrak veya env var'dan herhangi biri yeterli — CLI bayrağı
+                // env kurulumu yapamayan operatör için kısa yol.
+                boolean forceLogin = forceLoginFlag || "true".equalsIgnoreCase(
+                    pkcs11ForceLoginStr == null ? "" : pkcs11ForceLoginStr.trim());
 
                 System.out.println("📦 Keystore Type: PKCS#11 (IAIK)");
                 System.out.println("📂 Library: " + pkcs11Library);
@@ -117,13 +140,17 @@ public class SignatureApplication {
                 if (forceNullInitArgs) {
                     System.out.println("⚙️  Init args: NULL (AKİS / TÜBİTAK uyumluluk modu)");
                 }
+                if (forceLogin) {
+                    System.out.println("🔑 Force login: aktif (token sorgularından önce C_Login yapılacak)");
+                }
                 System.out.println();
 
                 // PKCS#11 yolunda IAIK Module ile listeliyoruz; SunPKCS11
                 // alias-mapping katmanından bağımsız. Module manuel olarak
                 // initialize edilip listing sonunda kapatılır.
                 iaikModule = new IaikPkcs11Module(
-                    pkcs11Library, slot, slotIndex, pin.toCharArray(), forceNullInitArgs);
+                    pkcs11Library, slot, slotIndex, pin.toCharArray(), forceNullInitArgs,
+                    0 /* sessionPoolSize: wrapper default */, forceLogin);
                 iaikModule.afterPropertiesSet();
                 // KeyStoreProvider sadece getType()/info için referans olarak duruyor.
                 provider = new PKCS11KeyStoreProvider(
@@ -179,6 +206,10 @@ public class SignatureApplication {
         System.out.println("  (seçeneksiz)           API sunucusunu başlatır (varsayılan port: 8085)");
         System.out.println("  --list-certificates    Keystore'daki sertifikaları listeler");
         System.out.println("  --list-certs           (kısa versiyon)");
+        System.out.println("      --force-login      Token sorgularından önce C_Login yapılmasını zorlar.");
+        System.out.println("                         Bazı HSM cihazları public objeleri (sertifika/public");
+        System.out.println("                         key) bile oturum açılmadan göstermez; bu bayrak");
+        System.out.println("                         listelemeden önce PIN ile oturum açar.");
         System.out.println("  --help, -h             Bu yardım mesajını gösterir");
         System.out.println("  --version, -v          Versiyon bilgisini gösterir\n");
         System.out.println("Environment Variables:");
@@ -189,6 +220,9 @@ public class SignatureApplication {
         System.out.println("                            Sürücü CKR_ARGUMENTS_BAD dönerse otomatik");
         System.out.println("                            aktive olur; explicit set etmek operatöre");
         System.out.println("                            trial-and-error'u atlatır.");
+        System.out.println("    PKCS11_FORCE_LOGIN      Token sorgularından önce C_Login zorla (true/false)");
+        System.out.println("                            --force-login CLI bayrağının env karşılığı;");
+        System.out.println("                            public objeleri login'siz göstermeyen HSM'ler için.");
         System.out.println("    CERTIFICATE_PIN         PIN kodu\n");
         System.out.println("  PFX Keystore:");
         System.out.println("    PFX_PATH                PFX dosya yolu");
@@ -202,6 +236,8 @@ public class SignatureApplication {
         System.out.println("  export PKCS11_SLOT=0");
         System.out.println("  export CERTIFICATE_PIN=1234");
         System.out.println("  java -jar mersel-dss-signer.jar --list-certificates\n");
+        System.out.println("  # Login'siz sorguyu reddeden HSM'lerde önce oturum açarak listele");
+        System.out.println("  java -jar mersel-dss-signer.jar --list-certificates --force-login\n");
         System.out.println("  # PFX sertifikalarını listele");
         System.out.println("  export PFX_PATH=/path/to/certificate.pfx");
         System.out.println("  export CERTIFICATE_PIN=password");

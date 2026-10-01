@@ -13,32 +13,28 @@
 # Unix/Linux/macOS
 cd devops/docker
 
-# Kurum 1 - Sadece RSA
-./unix/start-test-kurum.sh 1          # testkurum01 (RSA - default)
+# Kurum 17 - EC384 (default)
+./unix/start-test-kurum.sh 17         # testkurum17 (EC384)
 
-# Kurum 2 - RSA veya EC384
-./unix/start-test-kurum.sh 2 rsa      # testkurum02 (RSA)
-./unix/start-test-kurum.sh 2 ec384    # testkurum02 (EC384)
+# Kurum 2 - EC384
+./unix/start-test-kurum.sh 2          # testkurum02 (EC384)
 
-# Kurum 3 - RSA veya EC384
-./unix/start-test-kurum.sh 3 rsa      # testkurum03 (RSA)
-./unix/start-test-kurum.sh 3 ec384    # testkurum03 (EC384)
+# Kurum 3 - EC384
+./unix/start-test-kurum.sh 3          # testkurum03 (EC384)
 ```
 
 ```powershell
 # Windows (PowerShell)
 cd devops\docker
 
-# Kurum 1 - Sadece RSA
-.\windows\start-test-kurum.ps1 1          # testkurum01 (RSA - default)
+# Kurum 17 - EC384 (default)
+.\windows\start-test-kurum.ps1 17         # testkurum17 (EC384)
 
-# Kurum 2 - RSA veya EC384
-.\windows\start-test-kurum.ps1 2 rsa      # testkurum02 (RSA)
-.\windows\start-test-kurum.ps1 2 ec384    # testkurum02 (EC384)
+# Kurum 2 - EC384
+.\windows\start-test-kurum.ps1 2          # testkurum02 (EC384)
 
-# Kurum 3 - RSA veya EC384
-.\windows\start-test-kurum.ps1 3 rsa      # testkurum03 (RSA)
-.\windows\start-test-kurum.ps1 3 ec384    # testkurum03 (EC384)
+# Kurum 3 - EC384
+.\windows\start-test-kurum.ps1 3          # testkurum03 (EC384)
 ```
 
 ### Docker Compose (Manuel)
@@ -63,42 +59,22 @@ docker-compose down
 ### Manuel Başlatma (Yerel - Docker olmadan)
 
 ```bash
-# RSA Sertifikalar
+# EC384 Sertifikalar (2026-10 itibarıyla tek set — RSA kaldırıldı)
 
-# Kurum 1 - RSA 2048
-export PFX_PATH=./resources/test-certs/testkurum01_rsa2048@test.com.tr_614573.pfx
-export CERTIFICATE_PIN=614573
-export CERTIFICATE_ALIAS=testkurum01
-mvn spring-boot:run
-
-# Kurum 3 - RSA 2048
-export PFX_PATH=./resources/test-certs/testkurum3_rsa2048@test.com.tr_181193.pfx
-export CERTIFICATE_PIN=181193
-export CERTIFICATE_ALIAS=testkurum3
-mvn spring-boot:run
-
-# Kurum 5 - RSA 2048
-export PFX_PATH=./resources/test-certs/testkurum02_rsa2048@sm.gov.tr_059025.pfx
-export CERTIFICATE_PIN=059025
-export CERTIFICATE_ALIAS=testkurum02
-mvn spring-boot:run
-
-# EC384 Sertifikalar
-
-# Kurum 2 - EC384
-export PFX_PATH=./resources/test-certs/testkurum2_ec384@test.com.tr_825095.pfx
-export CERTIFICATE_PIN=825095
-export CERTIFICATE_ALIAS=testkurum2
-mvn spring-boot:run
-
-# Kurum 4 - EC384
-export PFX_PATH=./resources/test-certs/testkurum17_ec384@test.com.tr_328829.pfx
+# Kurum 17 - EC384 (default)
+export PFX_PATH=./resources/test-certs/testkurum17_ec384@test.gov.tr_328829.pfx
 export CERTIFICATE_PIN=328829
 export CERTIFICATE_ALIAS=testkurum17
 mvn spring-boot:run
 
-# Kurum 6 - EC384
-export PFX_PATH=./resources/test-certs/testkurum3_ec384@test.com.tr_540425.pfx
+# Kurum 2 - EC384
+export PFX_PATH=./resources/test-certs/testkurum02_ec384@test.com.tr_825095.pfx
+export CERTIFICATE_PIN=825095
+export CERTIFICATE_ALIAS=testkurum02
+mvn spring-boot:run
+
+# Kurum 3 - EC384
+export PFX_PATH=./resources/test-certs/testkurum03_ec384@test.com.tr_540425.pfx
 export CERTIFICATE_PIN=540425
 export CERTIFICATE_ALIAS=testkurum3_ec
 mvn spring-boot:run
@@ -109,7 +85,16 @@ mvn spring-boot:run
 ### Otomatik Test
 
 ```bash
-./scripts/test-with-bundled-certs.sh
+# API'yi başlat (KURUM17 EC384, default)
+./scripts/dev-run.sh &
+API_PID=$!
+sleep 15
+
+# curl örnekleriyle manuel test (aşağıdaki bölümler)
+# ...
+
+# API'yi durdur
+kill $API_PID
 ```
 
 ### Manuel Test - XML İmzalama
@@ -144,40 +129,32 @@ curl -X POST http://localhost:8085/v1/wssecuritysign \
 
 | Kurum | Algoritma | Dosya | Parola | Alias |
 |-------|-----------|-------|--------|-------|
-| **Kurum 1** | RSA 2048 | `testkurum01_rsa2048@test.com.tr_614573.pfx` | `614573` | `testkurum01` |
-| **Kurum 2** | RSA 2048 | `testkurum02_rsa2048@sm.gov.tr_059025.pfx` | `059025` | `testkurum02` |
+| **Kurum 17** | **EC384** | `testkurum17_ec384@test.gov.tr_328829.pfx` | `328829` | `testkurum17` |
 | **Kurum 2** | **EC384** | `testkurum02_ec384@test.com.tr_825095.pfx` | `825095` | `testkurum02_ec` |
-| **Kurum 3** | RSA 2048 | `testkurum03_rsa2048@test.com.tr_181193.pfx` | `181193` | `testkurum03` |
 | **Kurum 3** | **EC384** | `testkurum03_ec384@test.com.tr_540425.pfx` | `540425` | `testkurum03_ec` |
 
 **Not:** Tüm sertifikalar `resources/test-certs/` klasöründe bulunuyor.
+2026-10 itibarıyla RSA test sertifikaları Kamu SM tarafından yenilenmediği
+için kaldırıldı; EC384 seti 2028-05'e kadar geçerli.
 
 ### Kurum Özellikleri
 
-- **Kurum 1:** Sadece RSA 2048 desteği
-- **Kurum 2:** RSA 2048 + EC384 desteği (hem RSA hem EC ile test yapabilirsiniz)
-- **Kurum 3:** RSA 2048 + EC384 desteği (hem RSA hem EC ile test yapabilirsiniz)
+- **Kurum 17:** EC384 (default)
+- **Kurum 2:** EC384
+- **Kurum 3:** EC384
 
 ## 🔍 Sertifika İnceleme
 
 ### Keytool ile İnceleme
 
 ```bash
-# Kurum 1 - RSA
-keytool -list -v -keystore resources/test-certs/testkurum01_rsa2048@test.com.tr_614573.pfx \
-  -storetype PKCS12 -storepass 614573
-
-# Kurum 2 - RSA
-keytool -list -v -keystore resources/test-certs/testkurum02_rsa2048@sm.gov.tr_059025.pfx \
-  -storetype PKCS12 -storepass 059025
+# Kurum 17 - EC384
+keytool -list -v -keystore resources/test-certs/testkurum17_ec384@test.gov.tr_328829.pfx \
+  -storetype PKCS12 -storepass 328829
 
 # Kurum 2 - EC384
 keytool -list -v -keystore resources/test-certs/testkurum02_ec384@test.com.tr_825095.pfx \
   -storetype PKCS12 -storepass 825095
-
-# Kurum 3 - RSA
-keytool -list -v -keystore resources/test-certs/testkurum03_rsa2048@test.com.tr_181193.pfx \
-  -storetype PKCS12 -storepass 181193
 
 # Kurum 3 - EC384
 keytool -list -v -keystore resources/test-certs/testkurum03_ec384@test.com.tr_540425.pfx \
@@ -187,13 +164,13 @@ keytool -list -v -keystore resources/test-certs/testkurum03_ec384@test.com.tr_54
 ### OpenSSL ile Detaylı İnceleme
 
 ```bash
-# Public key algoritmasını kontrol et (RSA vs EC)
-openssl pkcs12 -in resources/test-certs/testkurum01_rsa2048@test.com.tr_614573.pfx \
-  -passin pass:614573 -nokeys -clcerts | \
+# Public key algoritmasını kontrol et
+openssl pkcs12 -in resources/test-certs/testkurum17_ec384@test.gov.tr_328829.pfx \
+  -passin pass:328829 -nokeys -clcerts | \
   openssl x509 -text -noout | grep -E "(Subject:|Public Key Algorithm:|Public-Key:)"
 
 # Sertifika zincirini görüntüle
-openssl pkcs12 -info -in resources/test-certs/testkurum2_ec384@test.com.tr_825095.pfx \
+openssl pkcs12 -info -in resources/test-certs/testkurum02_ec384@test.com.tr_825095.pfx \
   -passin pass:825095 -nokeys
 ```
 
@@ -304,15 +281,14 @@ mvn spring-boot:run
 ### Tüm Testleri Çalıştır
 
 ```bash
-# API'yi başlat
-./scripts/start-test1.sh &
+# API'yi başlat (KURUM17 EC384, default)
+./scripts/dev-run.sh &
 API_PID=$!
 
 # API'nin başlamasını bekle
 sleep 15
 
-# Testleri çalıştır
-./scripts/test-with-bundled-certs.sh
+# Aşağıdaki curl örnekleriyle endpoint'leri dene
 
 # API'yi durdur
 kill $API_PID

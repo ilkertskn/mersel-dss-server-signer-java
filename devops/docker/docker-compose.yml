@@ -1,6 +1,6 @@
 version: '3.8'
 
-# Varsayılan olarak .env.test.kurum1 kullanılır
+# Varsayılan olarak .env.test.kurum17 kullanılır
 # Farklı test kurumu için:
 #   docker-compose --env-file .env.test.kurum2 up -d
 # Production için:
@@ -17,7 +17,7 @@ services:
       - "8085:8085"
     environment:
       # ─── Spring Profile ─────────────────────────────────────────────
-      # Production'da boş bırakın; test için "local,pfx-kurum01-rsa2048"
+      # Production'da boş bırakın; test için "local,pfx-kurum17-ec384"
       # gibi composition için bkz. docs/RUN_PROFILES.md
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-}
 

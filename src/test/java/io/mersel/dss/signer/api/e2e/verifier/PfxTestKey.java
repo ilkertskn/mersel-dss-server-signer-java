@@ -14,18 +14,23 @@ import java.util.regex.Pattern;
  * <pre>
  *   {kurum}_{algo}@{domain}_{password}.pfx
  *   ↑       ↑       ↑       ↑
- *   adı    rsa2048 sahibi   PKCS#12 şifresi (alias da "1")
- *           ec384
+ *   adı    ec384   sahibi   PKCS#12 şifresi (alias da "1")
  * </pre>
+ *
+ * <p><b>RSA-2048 fixture'ları kaldırıldı</b> (2026-10): Kamu SM'in
+ * yayımladığı RSA test sertifikalarının geçerliliği doldu ve Kamu SM
+ * bunları yenilemedi; buna karşılık EC384 seti 2028-05'e kadar geçerli
+ * taze sertifikalarla yayımlandı. Pozitif matris artık tamamen EC-P384
+ * üzerinden koşar.</p>
  *
  * <p>Negatif (revoked / expired / suspended) PFX'ler için <b>aynı</b>
  * convention'a en az invasive ek: algoritma sonrasına status suffix'i
  * (<code>_revoked</code>, <code>_expired</code>, <code>_suspended</code>)
  * eklenir; şifre yine son segment olarak parse edilir:</p>
  * <pre>
- *   testkurum_revoked_rsa2048@test.com.tr_{password}.pfx
+ *   testkurum_revoked_ec384@test.com.tr_{password}.pfx
  *   testkurum_expired_ec384@test.com.tr_{password}.pfx
- *   testkurum_suspended_rsa2048@test.com.tr_{password}.pfx
+ *   testkurum_suspended_ec384@test.com.tr_{password}.pfx
  * </pre>
  *
  * <p>Şifre dosya adının son segmentinden çıkarılır — bu Dockerfile'da da
@@ -53,22 +58,18 @@ import java.util.regex.Pattern;
 public enum PfxTestKey {
 
     // ─────────────────────── POZİTİF (default matriks) ───────────────────────
-    KURUM01_RSA2048("testkurum01_rsa2048@test.com.tr_614573.pfx", Status.VALID),
-    KURUM02_RSA2048("testkurum02_rsa2048@sm.gov.tr_059025.pfx", Status.VALID),
+    // Tamamı EC-P384 (2026-10 itibarıyla; RSA seti Kamu SM'de yenilenmedi).
+    KURUM17_EC384("testkurum17_ec384@test.gov.tr_328829.pfx", Status.VALID),
     KURUM02_EC384("testkurum02_ec384@test.com.tr_825095.pfx", Status.VALID),
-    KURUM03_RSA2048("testkurum03_rsa2048@test.com.tr_181193.pfx", Status.VALID),
     KURUM03_EC384("testkurum03_ec384@test.com.tr_540425.pfx", Status.VALID),
 
     // ─────────────────────── NEGATİF (opt-in, lifecycle testleri) ───────────
     // Kamu SM tablosundan manuel indirilen sertifikalar; dosya adının son
-    // segmenti PFX şifresidir (Kamu SM ZIP içinden çıkar). Tüm 6 dosya
-    // 2026-05-18 itibarıyla repo'da; yeni bir negatif PFX yenilenirse
-    // sadece file-name (son segment = yeni password) güncellenmelidir.
-    KAMUSM_REVOKED_RSA2048("testkurum_revoked_rsa2048@test.com.tr_498272.pfx", Status.REVOKED),
+    // segmenti PFX şifresidir (Kamu SM ZIP içinden çıkar). RSA negatifleri
+    // 2026-10'da kaldırıldı (sertifika geçerliliği doldu, Kamu SM yenilemedi);
+    // yeni bir negatif PFX yenilenirse sadece file-name güncellenmelidir.
     KAMUSM_REVOKED_EC384("testkurum_revoked_ec384@test.com.tr_670246.pfx", Status.REVOKED),
-    KAMUSM_EXPIRED_RSA2048("testkurum_expired_rsa2048@test.com.tr_787579.pfx", Status.EXPIRED),
     KAMUSM_EXPIRED_EC384("testkurum_expired_ec384@test.com.tr_041207.pfx", Status.EXPIRED),
-    KAMUSM_SUSPENDED_RSA2048("testkurum_suspended_rsa2048@test.com.tr_073938.pfx", Status.SUSPENDED),
     KAMUSM_SUSPENDED_EC384("testkurum_suspended_ec384@test.com.tr_242195.pfx", Status.SUSPENDED);
 
     /** Repo köküne göre PFX dizini (Maven user.dir testlerde repo kökü olur). */

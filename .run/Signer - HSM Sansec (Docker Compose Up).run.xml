@@ -1,0 +1,26 @@
+<component name="ProjectRunConfigurationManager">
+  <!--
+    Sansec ağ HSM'ini (libupkcs11.so) linux/amd64 container içinde IN-PROCESS
+    çalıştırır. macOS/Apple Silicon JVM Linux x86-64 .so'yu yükleyemediği için
+    tüm Signer bu container'a taşınır (bkz. docs/RUN_PROFILES.md §8).
+
+    ON KOSUL:
+      1) Docker Desktop calisiyor (IntelliJ Settings, Docker bagli, adi "Docker").
+      2) cp devops/docker/.env.hsm-dev.example devops/docker/.env.hsm-dev
+         (HSM_LIB_DIR + CERTIFICATE_PIN doldur; gitignored).
+      3) Host uzerinde jar uret: ./mvnw -DskipTests package (veya "Make").
+
+    Bu config Docker connection adinin "Docker" olmasini bekler. Farkliysa
+    "Edit Configurations", Server alanini duzelt; ya da CLI kullan
+    (docs/RUN_PROFILES.md paragraf 8 icindeki "docker compose ... up" komutu).
+  -->
+  <configuration default="false" name="Signer - HSM Sansec (Docker Compose Up)" type="docker-deploy" factoryName="docker-compose.yml" server-name="Docker">
+    <deployment type="docker-compose.yml">
+      <settings>
+        <option name="envFilePath" value="$PROJECT_DIR$/devops/docker/.env.hsm-dev" />
+        <option name="sourceFilePath" value="devops/docker/docker-compose.hsm-dev.yml" />
+      </settings>
+    </deployment>
+    <method v="2" />
+  </configuration>
+</component>

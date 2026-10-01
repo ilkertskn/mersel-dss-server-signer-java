@@ -60,7 +60,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <h3>Senaryo</h3>
  * <p>Kamu SM test ortamı revoked / expired / suspended sertifikalarıyla
- * (RSA-2048 + EC-384, toplam 6 PFX) imza atılır ve {@code mersel-verifier-api}
+ * (EC-384, toplam 3 PFX) imza atılır ve {@code mersel-verifier-api}
  * downstream'inde reddedildiği doğrulanır. Tamper testlerinin
  * ({@link XAdESNegativeE2ETest}, {@link CAdESTamperedE2ETest},
  * {@link PAdESTamperedE2ETest}) tersine: imza matematik olarak <b>doğru</b>,
@@ -156,9 +156,16 @@ class CertificateLifecycleNegativeE2ETest extends AbstractVerifierE2ETest {
 
         CAdESService dssCades = new CAdESService(verifier);
         cadesService = new CAdESSignatureService(
-                dssCades, crypto, digestResolver, new Semaphore(2));
+                dssCades, crypto, digestResolver,
+                new io.mersel.dss.signer.api.services.timestamp.TimestampConfigurationService("", "", "", false),
+                new Semaphore(2));
 
-        padesService = new PAdESSignatureService(new Semaphore(2), digestResolver);
+        padesService = new PAdESSignatureService(
+                new eu.europa.esig.dss.pades.signature.PAdESService(
+                        new eu.europa.esig.dss.spi.validation.CommonCertificateVerifier()),
+                crypto, digestResolver,
+                new io.mersel.dss.signer.api.services.timestamp.TimestampConfigurationService("", "", "", false),
+                new Semaphore(2));
 
         wsService = new WsSecuritySignatureService(new Semaphore(2), digestResolver);
     }
@@ -226,7 +233,7 @@ class CertificateLifecycleNegativeE2ETest extends AbstractVerifierE2ETest {
         // ─── Auditor-facing parameters — Allure UI'da test'in altında tablo
         //     halinde görünür ve filtrelenebilir hale gelir.
         Allure.parameter("certificateStatus", key.status().name());
-        Allure.parameter("certificateAlgorithm", key.name().contains("EC384") ? "EC P-384" : "RSA-2048");
+        Allure.parameter("certificateAlgorithm", "EC P-384");
         Allure.parameter("signatureFormat", format.name());
         Allure.parameter("pfxFile", key.getFileName());
         Allure.parameter("verifierFormatHint", format.verifierFormatHint);

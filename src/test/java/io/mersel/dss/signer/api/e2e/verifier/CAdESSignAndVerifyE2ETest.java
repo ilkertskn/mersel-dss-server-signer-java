@@ -70,6 +70,7 @@ class CAdESSignAndVerifyE2ETest extends AbstractVerifierE2ETest {
 
         cadesSignatureService = new CAdESSignatureService(
                 cadesService, crypto, digestResolver,
+                new io.mersel.dss.signer.api.services.timestamp.TimestampConfigurationService("", "", "", false),
                 new java.util.concurrent.Semaphore(2));
     }
 

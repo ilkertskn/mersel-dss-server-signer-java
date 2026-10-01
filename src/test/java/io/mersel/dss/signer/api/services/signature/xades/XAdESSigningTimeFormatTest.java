@@ -138,7 +138,7 @@ class XAdESSigningTimeFormatTest {
             throws Exception {
         XAdESSigningTimeZoneHolder.setZone(zone);
 
-        SigningMaterial material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM01_RSA2048);
+        SigningMaterial material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM17_EC384);
         SignResponse signed = serviceOrInit().signXml(
                 new ByteArrayInputStream(E2eFixtures.efaturaXml()),
                 DocumentType.UblDocument,

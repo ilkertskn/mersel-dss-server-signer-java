@@ -27,12 +27,15 @@ internal sealed class CadesSigner : DssSignerHttpBase, ICadesSigner
             throw new ArgumentException("Belge içeriği boş olamaz.", nameof(request));
 
         Logger.LogDebug(
-            "DSS Signer CAdES isteği — boyut: {Boyut} bayt, detached: {Detached}",
-            request.Document.Length, request.Detached);
+            "DSS Signer CAdES isteği — boyut: {Boyut} bayt, detached: {Detached}, seviye: {Seviye}",
+            request.Document.Length, request.Detached, request.SignatureLevel);
 
         using var form = new MultipartFormDataContent();
         AddFilePart(form, "document", request.Document, request.FileName);
         AddStringPart(form, "detached", request.Detached ? "true" : "false");
+        // signatureLevel asla null değildir (default CADES_BES); enum sabit ismi
+        // sunucu Java enum'u ile birebir eşleşir (CADES_BES / CADES_T / CADES_LT / CADES_A).
+        AddStringPart(form, "signatureLevel", request.SignatureLevel.ToString());
 
         using var response = await PostMultipartBinaryAsync(
             "/v1/cadessign", form, ct, request.Headers).ConfigureAwait(false);

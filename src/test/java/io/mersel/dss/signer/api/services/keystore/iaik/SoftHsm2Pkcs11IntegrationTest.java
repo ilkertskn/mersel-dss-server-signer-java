@@ -4,6 +4,7 @@ import eu.europa.esig.dss.enumerations.DigestAlgorithm;
 import eu.europa.esig.dss.enumerations.SignatureAlgorithm;
 import eu.europa.esig.dss.model.SignatureValue;
 import eu.europa.esig.dss.model.ToBeSigned;
+import io.mersel.dss.signer.api.dtos.CertificateInfoDto;
 import io.mersel.dss.signer.api.e2e.verifier.E2eSigningMaterialFactory;
 import io.mersel.dss.signer.api.e2e.verifier.PfxTestKey;
 import io.mersel.dss.signer.api.models.SigningContext;
@@ -56,7 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <h2>Algoritmik kapsam</h2>
  * <ul>
- *   <li>RSA-2048 → {@code CKM_SHA256_RSA_PKCS} → DSS {@code RSA_SHA256}</li>
+ *   <li>EC P-384 → {@code CKM_ECDSA_SHA256} → DSS {@code ECDSA_SHA256}</li>
  *   <li>EC P-384 → {@code CKM_ECDSA + dış SHA-256} → DSS {@code ECDSA_SHA256}.
  *       <b>Bu kol özellikle değerlidir</b>: gerçek HSM raw {@code r||s} çıktısını
  *       {@link Pkcs11EcdsaSignatureEncoder#toDer} aracılığıyla DER SEQUENCE'a
@@ -100,9 +101,9 @@ class SoftHsm2Pkcs11IntegrationTest {
     // JUnit 5.8 (Spring Boot 2.7 parent) MATCH_NONE desteklemiyor; EXCLUDE +
     // explicit names ile filtreliyoruz.
     @EnumSource(value = PfxTestKey.class, mode = Mode.EXCLUDE,
-            names = {"KAMUSM_REVOKED_RSA2048", "KAMUSM_REVOKED_EC384",
-                     "KAMUSM_EXPIRED_RSA2048", "KAMUSM_EXPIRED_EC384",
-                     "KAMUSM_SUSPENDED_RSA2048", "KAMUSM_SUSPENDED_EC384"})
+            names = {"KAMUSM_REVOKED_EC384",
+                     "KAMUSM_EXPIRED_EC384",
+                     "KAMUSM_SUSPENDED_EC384"})
     void pfxImportedIntoSoftHsm_shouldSignThroughIaikPkcs11Module(PfxTestKey key) throws Exception {
         try (SoftHsm2TestSupport hsm = SoftHsm2TestSupport.requireOrSkip(tempDir)) {
             String tokenLabel = TOKEN_LABEL_PREFIX + key.name().toLowerCase();
@@ -156,9 +157,10 @@ class SoftHsm2Pkcs11IntegrationTest {
      * PFX'teki JCA private key algoritmasına göre, {@link DigestAlgorithm#SHA256}
      * ile birleşince DSS'in üreteceği imza algoritmasını döner.
      *
-     * <p>RSA-2048 → {@code RSA_SHA256}, EC P-384 → {@code ECDSA_SHA256}.
-     * EC kolu özellikle önemlidir çünkü gerçek HSM'in döndüğü {@code r||s}
-     * raw imzanın {@link Pkcs11EcdsaSignatureEncoder#toDer DER SEQUENCE}'a
+     * <p>EC P-384 → {@code ECDSA_SHA256}; RSA (yeni RSA PFX eklenirse)
+     * {@code RSA_SHA256}. EC kolu özellikle önemlidir çünkü gerçek HSM'in
+     * döndüğü {@code r||s} raw imzanın
+     * {@link Pkcs11EcdsaSignatureEncoder#toDer DER SEQUENCE}'a
      * çevrilmesini sınar.</p>
      */
     private static SignatureAlgorithm expectedSignatureAlgorithm(String keyAlgorithm) {
@@ -188,6 +190,56 @@ class SoftHsm2Pkcs11IntegrationTest {
     }
 
     /**
+     * Force-login yolu ({@code --force-login} / {@code PKCS11_FORCE_LOGIN}):
+     * token seçilir seçilmez, mekanizma listesi ve obje sorgularından önce
+     * bootstrap oturum + {@code C_Login} yapılır. SoftHSM erken login'i
+     * sorunsuz kabul eder; bu test force-login modunun normal cihazlarda
+     * <em>regresyon yaratmadığını</em> ve listing + sign akışının uçtan uca
+     * çalıştığını kanıtlar. ("Login'siz sorguyu reddeden" gerçek HSM davranışı
+     * yalnızca donanımda doğrulanabilir; kontrat testleri
+     * {@link IaikPkcs11ModuleContractTest}'te.)
+     */
+    @Test
+    void forceLogin_listCertificatesAndSign_shouldWorkEndToEnd() throws Exception {
+        PfxTestKey key = PfxTestKey.KURUM17_EC384;
+
+        try (SoftHsm2TestSupport hsm = SoftHsm2TestSupport.requireOrSkip(tempDir)) {
+            String tokenLabel = TOKEN_LABEL_PREFIX + "force-login";
+            String keyLabel = KEY_LABEL_PREFIX + "force-login";
+
+            hsm.initToken(tokenLabel, SO_PIN, USER_PIN);
+            hsm.importPfx(key, keyLabel);
+
+            IaikPkcs11Module module = hsm.openModule(USER_PIN, true /* forceLogin */);
+
+            // Login'li state'te listing tam sonuç dönmeli (CKA_PRIVATE
+            // objeler de görünür — hasPrivateKey doğru işaretlenir).
+            List<CertificateInfoDto> certs = module.listCertificates();
+            assertTrue(certs.stream().anyMatch(c -> keyLabel.equals(c.getAlias())),
+                    "Force-login listing'i import edilen sertifikayı göstermeli; dönen: "
+                            + certs);
+            assertTrue(certs.stream()
+                            .filter(c -> keyLabel.equals(c.getAlias()))
+                            .allMatch(c -> c.isHasPrivateKey()),
+                    "Login'li listing private key eşleşmesini görmeli");
+
+            // Aynı modül üzerinden imza da atılabilmeli (bootstrap session
+            // PKCS11Token havuzuyla çakışmamalı).
+            byte[] payload = "force-login e2e payload".getBytes(StandardCharsets.UTF_8);
+            byte[] signature = module.findSigner(keyLabel, null)
+                    .sign(payload, SignatureAlgorithm.ECDSA_SHA256);
+            assertNotNull(signature);
+
+            Signature verifier = Signature.getInstance("SHA256withECDSA");
+            verifier.initVerify(E2eSigningMaterialFactory.load(key)
+                    .getSigningCertificate().getPublicKey());
+            verifier.update(payload);
+            assertTrue(verifier.verify(signature),
+                    "Force-login modunda atılan imza public key ile doğrulanmalı");
+        }
+    }
+
+    /**
      * H1: SoftHSM token üzerinde 2 thread paralel sign çağrısı. IAIK
      * PKCS#11 wrapper'ı kendi içinde session pool'u kontrol ediyor;
      * dış servis katmanı {@code signatureSemaphore} ile sınırlandırıyor.
@@ -197,14 +249,14 @@ class SoftHsm2Pkcs11IntegrationTest {
      * {@code C_Sign} çağrılarını eşzamanlı koşulda race condition'sız
      * tamamlıyor mu? İki imza da public key ile doğrulanmalı.</p>
      *
-     * <p>RSA-2048 anahtarı seçildi — EC kolu C_Sign'dan sonra ek
+     * <p>EC-P384 anahtarı seçildi — EC kolu C_Sign'dan sonra ek
      * encoder (raw r||s → DER) gerektirir, bu da paralel test'te ek
      * shared state riski yaratır; izole tutmak için ayrı bir test
      * kapsamı (mevcut parametrize coverage).</p>
      */
     @Test
     void h1_parallelSign_onSameHsmToken_bothSucceed() throws Exception {
-        PfxTestKey key = PfxTestKey.KURUM01_RSA2048;
+        PfxTestKey key = PfxTestKey.KURUM17_EC384;
 
         try (SoftHsm2TestSupport hsm = SoftHsm2TestSupport.requireOrSkip(tempDir)) {
             String tokenLabel = TOKEN_LABEL_PREFIX + "concurrency";
@@ -247,7 +299,7 @@ class SoftHsm2Pkcs11IntegrationTest {
                             assertNotNull(sig.getValue(),
                                     "Paralel sign sonucu null olmamalı");
 
-                            Signature verifier = Signature.getInstance("SHA256withRSA");
+                            Signature verifier = Signature.getInstance("SHA256withECDSA");
                             verifier.initVerify(material.getSigningCertificate().getPublicKey());
                             verifier.update(payload);
                             assertTrue(verifier.verify(sig.getValue()),

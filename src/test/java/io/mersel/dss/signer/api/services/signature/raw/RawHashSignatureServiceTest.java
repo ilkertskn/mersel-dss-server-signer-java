@@ -115,15 +115,14 @@ class RawHashSignatureServiceTest {
     }
 
     /**
-     * SHA-256 dışı algoritmalar için de doğrulama: SHA-1, SHA-384, SHA-512.
-     * RSA-2048 anahtarı SHA-1, SHA-384, SHA-512 hepsini taşır;
-     * EC-P384 yalnızca SHA-384'i mantıklı kullanır (P-384 + SHA-256 de
-     * teknik olarak çalışır ama ekosistem konvansiyonu eğri ile eşler).
+     * SHA-384 dışı algoritmalar için de doğrulama: SHA-1, SHA-256, SHA-512.
+     * ECDSA her digest boyutuyla çalışır (imza boyutu eğriye göre sabit);
+     * amaç service'in digest prefix'ini doğru uygulaması.
      */
     @Test
-    @DisplayName("SHA-1 / SHA-384 / SHA-512: RSA path tüm prefix'leri doğru basıyor")
-    void multipleDigestAlgorithms_roundtrip_rsa() throws Exception {
-        SigningMaterial material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM01_RSA2048);
+    @DisplayName("SHA-1 / SHA-256 / SHA-384 / SHA-512: digest prefix'leri doğru basıyor")
+    void multipleDigestAlgorithms_roundtrip() throws Exception {
+        SigningMaterial material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM17_EC384);
         RawHashSignatureService service = new RawHashSignatureService(material);
 
         byte[] content = "Mersel multi-digest test".getBytes("UTF-8");
@@ -134,14 +133,14 @@ class RawHashSignatureServiceTest {
             byte[] digest = MessageDigest.getInstance(alg.getJavaName()).digest(content);
             byte[] sig = service.signDigest(digest, alg);
             assertTrue(verifyContent(material.getSigningCertificate(), content, sig, alg.getJavaName()),
-                "RSA + " + alg + ": içerik-tabanlı verify FAIL");
+                alg + ": içerik-tabanlı verify FAIL");
         }
     }
 
     @Test
     @DisplayName("Default digest algoritması (null) → SHA-256 olarak uygulanır")
     void nullDigestAlgorithm_defaultsToSha256() throws Exception {
-        SigningMaterial material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM01_RSA2048);
+        SigningMaterial material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM17_EC384);
         RawHashSignatureService service = new RawHashSignatureService(material);
 
         byte[] content = "default digest".getBytes("UTF-8");
@@ -156,7 +155,7 @@ class RawHashSignatureServiceTest {
     @Test
     @DisplayName("Null digest → IllegalArgumentException")
     void nullDigest_rejectsWithIllegalArgument() {
-        SigningMaterial material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM01_RSA2048);
+        SigningMaterial material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM17_EC384);
         RawHashSignatureService service = new RawHashSignatureService(material);
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
             () -> service.signDigest(null, DigestAlgorithm.SHA256));
@@ -167,7 +166,7 @@ class RawHashSignatureServiceTest {
     @Test
     @DisplayName("Boş digest array → IllegalArgumentException")
     void emptyDigest_rejectsWithIllegalArgument() {
-        SigningMaterial material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM01_RSA2048);
+        SigningMaterial material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM17_EC384);
         RawHashSignatureService service = new RawHashSignatureService(material);
         assertThrows(IllegalArgumentException.class,
             () -> service.signDigest(new byte[0], DigestAlgorithm.SHA256));
@@ -176,7 +175,7 @@ class RawHashSignatureServiceTest {
     @Test
     @DisplayName("Yanlış uzunluktaki digest (raw veri gönderme regresyonu) → IllegalArgumentException")
     void wrongLengthDigest_rejectsWithDescriptiveMessage() {
-        SigningMaterial material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM01_RSA2048);
+        SigningMaterial material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM17_EC384);
         RawHashSignatureService service = new RawHashSignatureService(material);
 
         // SHA-256 32 byte bekler; raw veri gibi gelen 27 byte → reject.
@@ -194,7 +193,7 @@ class RawHashSignatureServiceTest {
     @Test
     @DisplayName("Desteklenmeyen digest algoritması → IllegalArgumentException")
     void unsupportedDigestAlgorithm_rejectsWithDescriptiveMessage() {
-        SigningMaterial material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM01_RSA2048);
+        SigningMaterial material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM17_EC384);
         RawHashSignatureService service = new RawHashSignatureService(material);
 
         byte[] dummyDigest = new byte[32];
@@ -205,13 +204,16 @@ class RawHashSignatureServiceTest {
     }
 
     @Test
-    @DisplayName("RSA imza uzunluğu modül büyüklüğüyle eşleşmeli (RSA-2048 → 256 byte)")
-    void rsa2048_signatureLengthMatchesModulus() throws Exception {
-        SigningMaterial material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM01_RSA2048);
+    @DisplayName("ECDSA imza uzunluğu P-384 boyutlarıyla tutarlı olmalı (DER, ~96-104 byte)")
+    void ec384_signatureLengthMatchesCurve() throws Exception {
+        SigningMaterial material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM17_EC384);
         RawHashSignatureService service = new RawHashSignatureService(material);
 
-        byte[] sig = service.signDigest(sha256("anything".getBytes("UTF-8")), DigestAlgorithm.SHA256);
-        assertEquals(256, sig.length, "RSA-2048 PKCS#1 v1.5 imzası modül uzunluğunda olmalı");
+        byte[] sig = service.signDigest(sha384("anything".getBytes("UTF-8")), DigestAlgorithm.SHA384);
+        assertEquals((byte) 0x30, sig[0], "ECDSA imzası DER SEQUENCE ile başlamalı");
+        // r||s her biri ≤ 48 byte; DER INTEGER overhead ile 96-104 byte arası.
+        assertTrue(sig.length >= 96 && sig.length <= 104,
+                "P-384 ECDSA DER imzası 96-104 byte arası olmalı, gelen: " + sig.length);
     }
 
     @Test
@@ -238,7 +240,7 @@ class RawHashSignatureServiceTest {
     void doubleHashRegressionGuard() throws Exception {
         // Bu test indirekt olarak double-hash bug'ını yakalar. signDigest(SHA-256(content), SHA256)
         // ile verify(content, SHA-256) eşleşirse, service hash'i tekrar uygulamamış demektir.
-        SigningMaterial material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM01_RSA2048);
+        SigningMaterial material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM17_EC384);
         RawHashSignatureService service = new RawHashSignatureService(material);
 
         byte[] content = "regression guard payload".getBytes("UTF-8");
@@ -262,6 +264,10 @@ class RawHashSignatureServiceTest {
         return MessageDigest.getInstance("SHA-256").digest(content);
     }
 
+    private static byte[] sha384(byte[] content) throws Exception {
+        return MessageDigest.getInstance("SHA-384").digest(content);
+    }
+
     /**
      * İçerik baytlarını verir, JCA'nın hash'leyip RSA/ECDSA verify yapmasını
      * bekler. RSA için "SHA-256withRSA"; EC için "SHA-256withECDSA" gibi.
@@ -279,16 +285,14 @@ class RawHashSignatureServiceTest {
 
     /**
      * Önceden hash'lenmiş baytları "raw input" olarak verir; double-hash
-     * regresyon guard'ı için. RSA path'i NONEwithRSA + manual DigestInfo
-     * gerektirir; bu helper'da sadece RSA için kullanıyoruz, EC için anlamlı değil.
+     * regresyon guard'ı için. JCA verify içerik üzerinde kendi digest'ini
+     * uygular; service double-hash yapmışsa bu verify geçer.
      */
     private static boolean verifyContentRaw(X509Certificate cert, byte[] preHashedAsContent,
                                              byte[] signature) throws Exception {
         PublicKey pk = cert.getPublicKey();
-        if (!"RSA".equalsIgnoreCase(pk.getAlgorithm())) {
-            return false;
-        }
-        Signature s = Signature.getInstance("SHA256withRSA");
+        String alg = "SHA384with" + ("EC".equalsIgnoreCase(pk.getAlgorithm()) ? "ECDSA" : pk.getAlgorithm());
+        Signature s = Signature.getInstance(alg);
         s.initVerify(pk);
         s.update(preHashedAsContent);
         return s.verify(signature);

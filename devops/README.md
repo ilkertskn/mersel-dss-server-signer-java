@@ -26,8 +26,8 @@ devops/
 │   ├── docker-compose.yml           # Sign API + Prometheus + Grafana (+ AlertManager profile)
 │   ├── .dockerignore
 │   ├── .env.example                 # Production env şablonu
-│   ├── .env.test.kurum1             # Test Kurum 1 (RSA-2048)
-│   ├── .env -> .env.test.kurum1     # Symlink (default)
+│   ├── .env.test.kurum17            # Test Kurum 17 (EC-384)
+│   ├── .env -> .env.test.kurum17    # Symlink (default)
 │   ├── unix/start-test-kurum.sh     # Parametreli helper (./start-test-kurum.sh 2 ec384)
 │   ├── windows/start-test-kurum.ps1 # PowerShell muadili
 │   └── README.md
@@ -88,7 +88,7 @@ Uygulama config'i iki kaynaktan beslenir:
 Production deployment'larda **`SPRING_PROFILES_ACTIVE` boş bırakılır** (default `application.properties` yüklenir) ve secret'lar (PIN, parola, PKCS#11 yolu) env variable olarak verilir. Test/staging için profile composition kullanılır:
 
 ```
-SPRING_PROFILES_ACTIVE=local,pfx-kurum01-rsa2048    # PFX test, network off
+SPRING_PROFILES_ACTIVE=local,pfx-kurum17-ec384    # PFX test, network off
 SPRING_PROFILES_ACTIVE=local,mali-muhur-akis-linux  # Mali Mühür AKİS Linux sürücüsü, network off
 ```
 

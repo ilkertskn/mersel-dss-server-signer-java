@@ -157,4 +157,31 @@ class XAdESLevelUpgradeServiceTest {
                     "Hata mesajı XADES_A bağlamını net etmeli (XADES_BES yarım imza üretilmediği belirtilmeli)");
         }
     }
+
+    /**
+     * Yeni eklenen T ve LT seviyeleri de TSA gerektirir; XADES_A ile aynı
+     * fail-fast sözleşmesine uyar (TSA yoksa {@link TimestampException}, hata
+     * mesajında istenen profil adı bulunur).
+     */
+    @Nested
+    class T_and_LT_UpgradeFailFast {
+
+        @org.junit.jupiter.params.ParameterizedTest
+        @org.junit.jupiter.params.provider.EnumSource(
+                value = XadesSignatureLevel.class, names = {"XADES_T", "XADES_LT"})
+        void shouldThrowTimestampExceptionWhenTimestampServiceUnavailable(XadesSignatureLevel level) {
+            when(timestampService.isAvailable()).thenReturn(false);
+            DSSDocument original = createTestDocument();
+            XAdESSignatureParameters parameters = createTestParameters();
+
+            TimestampException ex = assertThrows(TimestampException.class,
+                    () -> service.upgradeIfNeeded(original, parameters, level));
+
+            assertEquals("TIMESTAMP_ERROR", ex.getErrorCode());
+            assertTrue(ex.getMessage().contains(level.name()),
+                    "Hata mesajı istenen profili (" + level + ") içermeli");
+            verify(timestampService).isAvailable();
+            verify(timestampService, never()).getTspSource();
+        }
+    }
 }

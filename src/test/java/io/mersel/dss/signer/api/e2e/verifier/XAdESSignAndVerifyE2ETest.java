@@ -51,14 +51,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <ol>
  *   <li><b>TSA-bağımsız UBL/HR-XML fixture matrisi</b>:
- *       5 PFX × 2 backend × {@code XadesDocumentFixture} TSA-bağımsız değerleri
+ *       3 PFX × 2 backend × {@code XadesDocumentFixture} TSA-bağımsız değerleri
  *       (UBL e-Fatura/e-İrsaliye/e-Müstahsil, HR-XML, large UBL ~5 MB,
  *       BOM-encoded UBL, mixed-newlines, CDATA, comments,
  *       foreign-namespace-prefix, unicode-emoji). EARSIV_RAPORU
  *       {@link XadesDocumentFixture#requiresTsa()} olduğu için bu matrise
  *       <em>dahil değildir</em> (aşağıdaki dedike test'e bakın).</li>
  *   <li><b>Generic OtherXmlDocument matrisi</b>:
- *       5 PFX × 2 backend × 1 jenerik XML = <b>10 senaryo</b>
+ *       3 PFX × 2 backend × 1 jenerik XML = <b>6 senaryo</b>
  *       ({@link DocumentType#OtherXmlDocument} placement yolunu test
  *       eder; bu yol enum'da değil çünkü "production fixture" değil).</li>
  *   <li><b>EArchiveReport fail-fast</b>: TSA yapılandırılmamış ortamda
@@ -147,7 +147,7 @@ class XAdESSignAndVerifyE2ETest extends AbstractVerifierE2ETest {
     }
 
     // ================================================================
-    // Matrix 1: 5 PFX × 2 backend × tüm XadesDocumentFixture (= 70)
+    // Matrix 1: 3 PFX × 2 backend × tüm XadesDocumentFixture (= 42)
     // ================================================================
 
     static Stream<Arguments> pfxBackendFixtureMatrix() {
@@ -238,7 +238,7 @@ class XAdESSignAndVerifyE2ETest extends AbstractVerifierE2ETest {
     }
 
     // ================================================================
-    // Matrix 2: 5 PFX × 2 backend × generic OtherXmlDocument (= 10)
+    // Matrix 2: 3 PFX × 2 backend × generic OtherXmlDocument (= 6)
     // ================================================================
     // Generic XML için fixture-enum'a yer yok (production senaryosu değil),
     // ama DocumentType.OtherXmlDocument yolunu da test ediyoruz.

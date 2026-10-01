@@ -680,6 +680,22 @@ Bu düzeltme için DSS projesine **Pull Request** gönderilmiştir:
 | XAdES-XL (eXtended Long) | Base64 Satır Sonları, OCSP Cache             |
 | XAdES-A (Archival)       | OCSP Cache, Base64 Satır Sonları             |
 
+> **Request-driven seviye eşlemesi (v1.x+):** İmza seviyesinin tek karar
+> vericisi request alanıdır (`signatureLevel`); `documentType` artık seviyeye
+> etki etmez. `XAdESLevelUpgradeService` istenen `XadesSignatureLevel`'a göre
+> şu override'lı zincir sınıflarını seçer:
+>
+> | Request seviyesi | Kullanılan override sınıfı        | İçerik                                    |
+> | ---------------- | --------------------------------- | ----------------------------------------- |
+> | `XADES_BES`      | — (upgrade yok)                   | Yalnız imza; TSA çağrılmaz                 |
+> | `XADES_T`        | `XAdESLevelBaselineT`             | + SignatureTimeStamp                       |
+> | `XADES_LT`       | `XAdESLevelXL` (legacy)           | + CertificateValues/RevocationValues (OCSP cache override'ı bu yolda devrede) |
+> | `XADES_A`        | `XAdESLevelA`                     | + ArchiveTimeStamp                         |
+>
+> `XADES_LT` için DSS baseline `XAdESLevelBaselineLT` yerine legacy
+> `XAdESLevelXL` tercih edildi; böylece OCSP/CRL cache override zinciri (madde 6)
+> LT ve A yollarında birebir aynı şekilde çalışır.
+
 
 ### 📄 Belge Tipleri
 

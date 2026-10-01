@@ -74,7 +74,7 @@ class PadesControllerTest {
         void shouldReturnOkWithPdfBytes() throws Exception {
             byte[] signedPdf = "%PDF-1.4 signed".getBytes();
             when(padesSignatureService.signPdf(
-                    any(InputStream.class), isNull(), isNull(), eq(false), eq(signingMaterial)))
+                    any(InputStream.class), isNull(), isNull(), eq(false), eq(signingMaterial), any()))
                 .thenReturn(new SignResponse(signedPdf, null));
 
             SignPadesDto dto = new SignPadesDto();
@@ -90,7 +90,7 @@ class PadesControllerTest {
 
         @Test
         void shouldIncludeContentDispositionWithPdfExtension() throws Exception {
-            when(padesSignatureService.signPdf(any(), any(), any(), anyBoolean(), any()))
+            when(padesSignatureService.signPdf(any(), any(), any(), anyBoolean(), any(), any()))
                 .thenReturn(new SignResponse("pdf".getBytes(), null));
 
             SignPadesDto dto = new SignPadesDto();
@@ -109,7 +109,7 @@ class PadesControllerTest {
 
         @Test
         void appendMode_truePassedToService() throws Exception {
-            when(padesSignatureService.signPdf(any(), any(), any(), anyBoolean(), any()))
+            when(padesSignatureService.signPdf(any(), any(), any(), anyBoolean(), any(), any()))
                 .thenReturn(new SignResponse("x".getBytes(), null));
 
             SignPadesDto dto = new SignPadesDto();
@@ -120,12 +120,12 @@ class PadesControllerTest {
             controller.signPades(dto);
 
             verify(padesSignatureService).signPdf(
-                any(InputStream.class), isNull(), isNull(), eq(true), eq(signingMaterial));
+                any(InputStream.class), isNull(), isNull(), eq(true), eq(signingMaterial), any());
         }
 
         @Test
         void appendMode_nullDefaultsToFalse() throws Exception {
-            when(padesSignatureService.signPdf(any(), any(), any(), anyBoolean(), any()))
+            when(padesSignatureService.signPdf(any(), any(), any(), anyBoolean(), any(), any()))
                 .thenReturn(new SignResponse("x".getBytes(), null));
 
             SignPadesDto dto = new SignPadesDto();
@@ -136,7 +136,7 @@ class PadesControllerTest {
             controller.signPades(dto);
 
             verify(padesSignatureService).signPdf(
-                any(InputStream.class), isNull(), isNull(), eq(false), eq(signingMaterial));
+                any(InputStream.class), isNull(), isNull(), eq(false), eq(signingMaterial), any());
         }
 
         @Test
@@ -144,7 +144,7 @@ class PadesControllerTest {
             byte[] attachmentBytes = "xml-payload".getBytes();
             when(padesSignatureService.signPdf(
                     any(InputStream.class), aryEq(attachmentBytes), eq("invoice.xml"),
-                    anyBoolean(), any()))
+                    anyBoolean(), any(), any()))
                 .thenReturn(new SignResponse("pdf".getBytes(), null));
 
             SignPadesDto dto = new SignPadesDto();
@@ -159,7 +159,7 @@ class PadesControllerTest {
             assertEquals(HttpStatus.OK, response.getStatusCode());
             verify(padesSignatureService).signPdf(
                 any(InputStream.class), aryEq(attachmentBytes), eq("invoice.xml"),
-                anyBoolean(), any());
+                anyBoolean(), any(), any());
         }
 
         /**
@@ -171,7 +171,7 @@ class PadesControllerTest {
          */
         @Test
         void g6_chunkedStreamingContract_bodyIsByteArrayNotStream() throws Exception {
-            when(padesSignatureService.signPdf(any(), any(), any(), anyBoolean(), any()))
+            when(padesSignatureService.signPdf(any(), any(), any(), anyBoolean(), any(), any()))
                 .thenReturn(new SignResponse("pdf-body".getBytes(), null));
 
             SignPadesDto dto = new SignPadesDto();
@@ -212,7 +212,7 @@ class PadesControllerTest {
 
         @Test
         void serviceException_shouldReturnInternalServerError() {
-            when(padesSignatureService.signPdf(any(), any(), any(), anyBoolean(), any()))
+            when(padesSignatureService.signPdf(any(), any(), any(), anyBoolean(), any(), any()))
                 .thenThrow(new SignatureException("PADES_SIGN_ERROR", "iText failed"));
 
             SignPadesDto dto = new SignPadesDto();
@@ -228,7 +228,7 @@ class PadesControllerTest {
 
         @Test
         void unexpectedException_shouldReturnInternalServerError() {
-            when(padesSignatureService.signPdf(any(), any(), any(), anyBoolean(), any()))
+            when(padesSignatureService.signPdf(any(), any(), any(), anyBoolean(), any(), any()))
                 .thenThrow(new RuntimeException("Unexpected"));
 
             SignPadesDto dto = new SignPadesDto();
@@ -238,6 +238,42 @@ class PadesControllerTest {
             ResponseEntity<?> response = controller.signPades(dto);
 
             assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        }
+    }
+
+    @Nested
+    class SignatureLevelPropagation {
+
+        @Test
+        void explicitLevel_isForwardedToService() throws Exception {
+            when(padesSignatureService.signPdf(any(InputStream.class), any(), any(), anyBoolean(),
+                    any(), eq(io.mersel.dss.signer.api.models.enums.PadesSignatureLevel.PADES_LT)))
+                .thenReturn(new SignResponse("x".getBytes(), null));
+
+            SignPadesDto dto = new SignPadesDto();
+            dto.setDocument(new MockMultipartFile("document", "in.pdf", "application/pdf", "x".getBytes()));
+            dto.setSignatureLevel(io.mersel.dss.signer.api.models.enums.PadesSignatureLevel.PADES_LT);
+
+            ResponseEntity<?> response = controller.signPades(dto);
+
+            assertEquals(HttpStatus.OK, response.getStatusCode());
+            verify(padesSignatureService).signPdf(any(InputStream.class), any(), any(), anyBoolean(),
+                    any(), eq(io.mersel.dss.signer.api.models.enums.PadesSignatureLevel.PADES_LT));
+        }
+
+        @Test
+        void omittedLevel_defaultsToPADES_BES() throws Exception {
+            when(padesSignatureService.signPdf(any(InputStream.class), any(), any(), anyBoolean(), any(), any()))
+                .thenReturn(new SignResponse("x".getBytes(), null));
+
+            SignPadesDto dto = new SignPadesDto();
+            dto.setDocument(new MockMultipartFile("document", "in.pdf", "application/pdf", "x".getBytes()));
+            // signatureLevel set edilmedi → DTO non-null kontratı PADES_BES forward etmeli.
+
+            controller.signPades(dto);
+
+            verify(padesSignatureService).signPdf(any(InputStream.class), any(), any(), anyBoolean(),
+                    any(), eq(io.mersel.dss.signer.api.models.enums.PadesSignatureLevel.PADES_BES));
         }
     }
 }

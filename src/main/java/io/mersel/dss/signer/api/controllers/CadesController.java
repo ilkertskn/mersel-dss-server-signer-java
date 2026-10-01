@@ -117,11 +117,12 @@ public class CadesController {
 
             boolean detached = Boolean.TRUE.equals(dto.getDetached());
             inputSize = dto.getDocument().getSize();
-            sample = signatureMetrics.start("CAdES", "binary", detached ? "detached" : "attached");
+            sample = signatureMetrics.start("CAdES", "binary", dto.getSignatureLevel().name());
 
             SignResponse result;
             try (java.io.InputStream is = dto.getDocument().getInputStream()) {
-                result = cadesSignatureService.signData(is, detached, signingMaterial);
+                result = cadesSignatureService.signData(is, detached, signingMaterial,
+                        dto.getSignatureLevel());
             }
 
             sample.success(inputSize,

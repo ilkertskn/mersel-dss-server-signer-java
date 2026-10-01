@@ -19,12 +19,12 @@ mali mühür test sertifikalarını barındırır. Buradaki PFX'ler:
 {kurum}_{algo}[_{status}]@{domain}_{password}.pfx
 ```
 
-- `kurum` — `testkurum01`, `testkurum02`, `testkurum03` (pozitifler) veya
+- `kurum` — `testkurum17`, `testkurum02`, `testkurum03` (pozitifler) veya
   `testkurum` (negatifler — Kamu SM'in tek bir test cert publish ettiği case'ler)
-- `algo` — `rsa2048` veya `ec384`
+- `algo` — `ec384` (2026-10 itibarıyla tek set; RSA kaldırıldı)
 - `status` (opsiyonel) — `revoked` / `expired` / `suspended`
   (yoksa = `valid`, pozitif default)
-- `domain` — Kamu SM ZIP'inde geçen sahiplik adı (`test.com.tr`, `sm.gov.tr`)
+- `domain` — Kamu SM ZIP'inde geçen sahiplik adı (`test.gov.tr`, `test.com.tr`)
 - `password` — PKCS#12 password (dosya adının son `_` ile başlayan segmenti);
   `PfxTestKey.parsePassword()` regex'i: `^.+_([A-Za-z0-9]+)\.pfx$`
 
@@ -32,50 +32,48 @@ Alias her PFX için sabit: `"1"` (`PfxTestKey.DEFAULT_ALIAS`).
 
 ## Pozitif (Status.VALID) — mevcut envanter (✓)
 
-Bu PFX'ler repo'da var ve default `verifier-e2e` matriksinde aktif:
+Bu PFX'ler repo'da var ve default `verifier-e2e` matriksinde aktif.
+2026-10 itibarıyla tamamı **EC-P384** (RSA seti Kamu SM'de yenilenmediği için
+kaldırıldı; EC384 sertifikaları 2028-05'e kadar geçerli):
 
 | Dosya | Algoritma | Sahiplik domain |
 |---|---|---|
-| `testkurum01_rsa2048@test.com.tr_614573.pfx` | RSA-2048 | test.com.tr |
-| `testkurum02_rsa2048@sm.gov.tr_059025.pfx`   | RSA-2048 | sm.gov.tr |
-| `testkurum02_ec384@test.com.tr_825095.pfx`   | EC-P384  | test.com.tr |
-| `testkurum03_rsa2048@test.com.tr_181193.pfx` | RSA-2048 | test.com.tr |
-| `testkurum03_ec384@test.com.tr_540425.pfx`   | EC-P384  | test.com.tr |
+| `testkurum17_ec384@test.gov.tr_328829.pfx` | EC-P384 | test.gov.tr |
+| `testkurum02_ec384@test.com.tr_825095.pfx` | EC-P384 | test.com.tr |
+| `testkurum03_ec384@test.com.tr_540425.pfx` | EC-P384 | test.com.tr |
 
-## Negatif (Status.REVOKED / EXPIRED / SUSPENDED) — beklenen (⏳ manuel indirme)
+## Negatif (Status.REVOKED / EXPIRED / SUSPENDED) — mevcut envanter (✓)
 
-`CertificateLifecycleNegativeE2ETest` aşağıdaki 6 PFX'i bekler. Bunlar Kamu SM
-sayfasında **manuel download + email onayı** gerektirdiği için repo'ya
-otomatik konmamıştır:
+`CertificateLifecycleNegativeE2ETest` aşağıdaki 3 PFX'i bekler (2026-10
+itibarıyla repo'da; RSA negatifleri sertifikaları expire olduğu için
+kaldırıldı):
 
-| # | Kamu SM sayfasındaki link adı | Hedef dosya adı | Beklenen verifier davranışı |
-|---|---|---|---|
-| 1 | "Kamu SM — İptal Edilmiş Mali Mühür Test Sertifikası" (RSA) | `testkurum_revoked_rsa2048@test.com.tr_{PWD}.pfx` | INDETERMINATE/TOTAL_FAILED, sub=REVOKED |
-| 2 | "Kamu SM — İptal Edilmiş EC384 Mali Mühür Test Sertifikası" (EC) | `testkurum_revoked_ec384@test.com.tr_{PWD}.pfx`   | INDETERMINATE/TOTAL_FAILED, sub=REVOKED |
-| 3 | "Kamu SM — Bir Günlük Zamanı Geçmiş Mali Mühür Test Sertifikası" (RSA) | `testkurum_expired_rsa2048@test.com.tr_{PWD}.pfx` | INDETERMINATE/TOTAL_FAILED, sub=OUT_OF_BOUNDS_NOT_FRESH / EXPIRED |
-| 4 | "Kamu SM — Bir Günlük Zamanı Geçmiş EC384 Mali Mühür Test Sertifikası" (EC) | `testkurum_expired_ec384@test.com.tr_{PWD}.pfx`   | INDETERMINATE/TOTAL_FAILED, sub=OUT_OF_BOUNDS_NOT_FRESH / EXPIRED |
-| 5 | "Kamu SM — Askıya Alınmış Mali Mühür Test Sertifikası" (RSA) | `testkurum_suspended_rsa2048@test.com.tr_{PWD}.pfx` | INDETERMINATE, sub=CERTIFICATE_HOLD |
-| 6 | "Kamu SM — Askıya Alınmış EC384 Mali Mühür Test Sertifikası" (EC) | `testkurum_suspended_ec384@test.com.tr_{PWD}.pfx`   | INDETERMINATE, sub=CERTIFICATE_HOLD |
+| # | Dosya | Beklenen verifier davranışı |
+|---|---|---|
+| 1 | `testkurum_revoked_ec384@test.com.tr_670246.pfx` | INDETERMINATE/TOTAL_FAILED, sub=REVOKED |
+| 2 | `testkurum_expired_ec384@test.com.tr_041207.pfx` | INDETERMINATE/TOTAL_FAILED, sub=OUT_OF_BOUNDS_NOT_FRESH / EXPIRED |
+| 3 | `testkurum_suspended_ec384@test.com.tr_242195.pfx` | INDETERMINATE, sub=CERTIFICATE_HOLD |
 
-### Adım adım indirme
+### Adım adım indirme (negatif PFX yenilenmesi gerekirse)
 
-1. https://yazilim.kamusm.gov.tr/ → Test Sertifikaları sayfasına git
-   (Mali Mühür → Test Sertifikası bölümü).
-2. Yukarıdaki tabloda listelenen 6 ZIP'i ayrı ayrı indir. Her ZIP için
-   Kamu SM email onayı + captcha isteyebilir; otomasyona uygun değildir.
+1. https://kamusm.bilgem.tubitak.gov.tr/hizmetler/test_sistemi/test_sistemi_kullanici_sertifikalari.jsp
+   → "Mali Mühür Sertifikaları" bölümü.
+2. İptal / süresi geçmiş / askıda kategorilerindeki ZIP'leri ayrı ayrı indir.
+   Her ZIP için Kamu SM email onayı + captcha isteyebilir; otomasyona uygun
+   değildir.
 3. ZIP'i aç → içinde 1 adet `.pfx` ve 1 adet `pass.txt` (veya benzer)
    vardır. `pass.txt`'deki PKCS#12 şifresini hatırla.
 4. PFX'i `resources/test-certs/` altına aşağıdaki adla **rename ederek**
    kopyala:
 
    ```
-   testkurum_revoked_rsa2048@test.com.tr_{PASS.TXT İÇERİĞİ}.pfx
+   testkurum_revoked_ec384@test.com.tr_{PASS.TXT İÇERİĞİ}.pfx
    ```
 
    Örnek: pass.txt → `847291` ise dosya adı
-   `testkurum_revoked_rsa2048@test.com.tr_847291.pfx` olur.
+   `testkurum_revoked_ec384@test.com.tr_847291.pfx` olur.
 
-5. 6 PFX dosyasının da repo'da görüldüğünü doğrula:
+5. PFX dosyalarının repo'da görüldüğünü doğrula:
 
    ```bash
    ls -la resources/test-certs/testkurum_*.pfx

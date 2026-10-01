@@ -71,10 +71,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <pre>
  *   target/signed-artifacts/&lt;format&gt;/&lt;methodName&gt;__&lt;sanitize(label)&gt;.&lt;ext&gt;
  *
- *   xades/xadesFixtureRoundtripIsValid__KURUM01_RSA2048_PFX_JCA_EFATURA.xml
- *   cades-attached/cadesRoundtripIsValid__KURUM01_RSA2048_PFX_JCA_attached.p7s
- *   cades-detached/cadesRoundtripIsValid__KURUM01_RSA2048_PFX_JCA_detached.p7s
- *   pades/padesRoundtripIsValid__KURUM01_RSA2048_PFX_JCA_embedded.pdf
+ *   xades/xadesFixtureRoundtripIsValid__KURUM17_EC384_PFX_JCA_EFATURA.xml
+ *   cades-attached/cadesRoundtripIsValid__KURUM17_EC384_PFX_JCA_attached.p7s
+ *   cades-detached/cadesRoundtripIsValid__KURUM17_EC384_PFX_JCA_detached.p7s
+ *   pades/padesRoundtripIsValid__KURUM17_EC384_PFX_JCA_embedded.pdf
  *   pades-negative/byteRangeBitFlipFailsVerification__byte100-bitflip.pdf
  *   xades-negative/wrapAttackRejected__wrap-attack.xml
  * </pre>
@@ -365,7 +365,7 @@ public final class SignedArtifactExporter
      * report.put("expectedIndication", "TOTAL_PASSED");
      * report.put("expectationMet", "TOTAL_PASSED".equals(report.get("indication")));
      * SignedArtifactExporter.exportWithVerification(
-     *         Format.XADES, signedBytes, "kurum01-rsa-efatura", report);
+     *         Format.XADES, signedBytes, "kurum17-ec384-efatura", report);
      * }</pre>
      *
      * <p>{@code verificationReport} {@link LinkedHashMap} ile order-preserve
@@ -422,7 +422,7 @@ public final class SignedArtifactExporter
 
     /**
      * Signed artifact'in yanına {@code .verify.json} sidecar yazar.
-     * Örnek: {@code kurum01-rsa-efatura.xml} → {@code kurum01-rsa-efatura.verify.json}.
+     * Örnek: {@code kurum17-ec384-efatura.xml} → {@code kurum17-ec384-efatura.verify.json}.
      * <p>Aynı sidecar'ı Allure attachment olarak da test case'e bağlar.</p>
      */
     private static void writeVerifyJsonSidecar(Path signedPath,
@@ -592,8 +592,8 @@ public final class SignedArtifactExporter
      *   &lt;methodName&gt;__&lt;sanitize(label)&gt;.&lt;ext&gt;
      *
      *   örnek:
-     *   xades/xadesFixtureRoundtripIsValid__KURUM01_RSA2048_PFX_JCA_EFATURA.xml
-     *   cades-attached/cadesRoundtripIsValid__KURUM01_RSA2048_PFX_JCA_attached.p7s
+     *   xades/xadesFixtureRoundtripIsValid__KURUM17_EC384_PFX_JCA_EFATURA.xml
+     *   cades-attached/cadesRoundtripIsValid__KURUM17_EC384_PFX_JCA_attached.p7s
      *   pades-negative/byteRangeBitFlipFailsVerification__byte100-bitflip.pdf
      *   xades-negative/wrapAttackRejected__wrap-attack.xml
      * </pre>
@@ -756,7 +756,7 @@ public final class SignedArtifactExporter
      * boşluk, slash, kontrol karakterleri vb. underscore'a çevrilir.
      *
      * <p><b>Casing korunur</b> — bilinçli karar: enum adları
-     * ({@code KURUM01_RSA2048}, {@code PFX_JCA}, {@code EFATURA}) ve
+     * ({@code KURUM17_EC384}, {@code PFX_JCA}, {@code EFATURA}) ve
      * camelCase method adları ({@code xadesFixtureRoundtripIsValid})
      * lowercase'e çevrilirse okunabilirlik kaybolur. macOS varsayılan
      * filesystem'i case-insensitive olduğu için dosya çakışması
@@ -838,10 +838,10 @@ public final class SignedArtifactExporter
                 + "\n"
                 + "Örnekler:\n"
                 + "\n"
-                + "- `xades/xadesFixtureRoundtripIsValid__KURUM01_RSA2048_PFX_JCA_EFATURA.xml`\n"
-                + "- `cades-attached/cadesRoundtripIsValid__KURUM01_RSA2048_PFX_JCA_attached.p7s`\n"
-                + "- `cades-detached/cadesRoundtripIsValid__KURUM01_RSA2048_PFX_JCA_detached.p7s`\n"
-                + "- `pades/padesRoundtripIsValid__KURUM01_RSA2048_PFX_JCA_embedded.pdf`\n"
+                + "- `xades/xadesFixtureRoundtripIsValid__KURUM17_EC384_PFX_JCA_EFATURA.xml`\n"
+                + "- `cades-attached/cadesRoundtripIsValid__KURUM17_EC384_PFX_JCA_attached.p7s`\n"
+                + "- `cades-detached/cadesRoundtripIsValid__KURUM17_EC384_PFX_JCA_detached.p7s`\n"
+                + "- `pades/padesRoundtripIsValid__KURUM17_EC384_PFX_JCA_embedded.pdf`\n"
                 + "- `pades-negative/byteRangeBitFlipFailsVerification__byte100-bitflip.pdf`\n"
                 + "- `xades-negative/wrapAttackRejected__wrap-attack.xml`\n"
                 + "\n"
@@ -853,7 +853,7 @@ public final class SignedArtifactExporter
                 + "\n"
                 + "Label içeriği genellikle `<PFX>_<backend>_<scenario>` biçiminde\n"
                 + "ve **case korunur** (lowercase düşürülmez) → enum adları\n"
-                + "(`KURUM01_RSA2048`, `PFX_JCA`, `EFATURA`) okunabilir kalır.\n"
+                + "(`KURUM17_EC384`, `PFX_JCA`, `EFATURA`) okunabilir kalır.\n"
                 + "\n"
                 + "## System property toggle'ları\n"
                 + "\n"

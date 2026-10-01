@@ -41,7 +41,7 @@ import static org.mockito.Mockito.when;
  *
  * <h3>Neden bu test?</h3>
  * <p>Üretim {@link DigestAlgorithmResolverService} sertifikanın signature
- * algorithm name'inden ({@code SHA256withRSA}, {@code SHA384withECDSA} vb.)
+ * algorithm name'inden ({@code SHA384withECDSA}, {@code SHA256withRSA} vb.)
  * SHA-1/224/256/384/512 değerinden birini çözer. SHA varyasyonları
  * {@link WsSecuritySignatureService} tarafından üç ayrı XMLDsig URI'sine
  * map edilir:</p>
@@ -67,10 +67,10 @@ import static org.mockito.Mockito.when;
  * {@link WsSecurityLocalXmlDsigVerifier} ile imza geçerli kalmalı
  * (digest URI ↔ algorithm tutarlılığı).</p>
  *
- * <p>Test PFX RSA-2048 ile sınırlandırılmıştır — RSA cert'ler her SHA
- * varyasyonu ile imzalanabilir (PKCS#1 v1.5 enc + herhangi SHA digest).
- * ECDSA için SHA seçimi NIST SP 800-57 önerilerine bağlıdır (P-256 ile
- * SHA-512 mismatch olur); EC parametrizasyonu daha dar bir kontrat.</p>
+ * <p>Test PFX EC-P384 (KURUM17) ile sınırlandırılmıştır — ECDSA her SHA
+ * varyasyonu ile imzalanabilir (imza boyutu eğriye göre sabittir, digest
+ * boyutundan etkilenmez); URI ↔ MessageDigest tutarlılık kontratı tüm
+ * SHA varyasyonlarında aynı şekilde çalışır.</p>
  */
 @DisplayName("D-hash-param: WS-Security DigestMethod/SignatureMethod URI tutarlılığı (SHA-256/384/512)")
 @ExtendWith(SignedArtifactExporter.class)
@@ -83,14 +83,14 @@ class WsSecurityHashAlgorithmParametrizedTest {
     private static final String NS_DSIG_MORE = "http://www.w3.org/2001/04/xmldsig-more#";
     private static final String NS_XMLENC = "http://www.w3.org/2001/04/xmlenc#";
 
-    private static SigningMaterial rsa2048Material;
+    private static SigningMaterial ec384Material;
     private static byte[] baselineSoap;
 
     @BeforeAll
     static void initStack() {
-        // RSA-2048 (KURUM01) — PFX/JCA backend; her SHA varyasyonu ile
-        // PKCS#1 v1.5 imzalanabilir (cert public key constraint yok).
-        rsa2048Material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM01_RSA2048);
+        // EC-P384 (KURUM17) — PFX/JCA backend; ECDSA her SHA varyasyonu ile
+        // imzalanabilir (imza boyutu eğriye göre sabit).
+        ec384Material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM17_EC384);
         // Baseline minimal envelope — SHA çeşitliliğine duyarlı değil
         // (sadece c14n bytes farklılaşır). Her test bunu re-parse eder
         // (her thread için fresh DOM zorunlu; JCA DocumentBuilder
@@ -104,14 +104,14 @@ class WsSecurityHashAlgorithmParametrizedTest {
      *   <li>Mock resolver verilen SHA'yı döner;</li>
      *   <li>{@link WsSecuritySignatureService} imzalar;</li>
      *   <li>Output SOAP'ta DigestMethod URI = beklenen XMLDsig URI'si;</li>
-     *   <li>SignatureMethod URI = RSA + beklenen SHA;</li>
+     *   <li>SignatureMethod URI = ECDSA + beklenen SHA;</li>
      *   <li>Local XMLDsig verifier imzayı kabul eder (URI ↔ algo tutarlı).</li>
      * </ol>
      */
     @ParameterizedTest(name = "{0}")
     @EnumSource(value = DigestAlgorithm.class, names = {"SHA256", "SHA384", "SHA512"})
-    @DisplayName("RSA-2048 × SHA-{256,384,512} → DigestMethod + SignatureMethod URI tutarlı + verifier valid")
-    void rsaHashAlgorithmVariations_emitConsistentXmlDsigUris(DigestAlgorithm hashAlgo) throws Exception {
+    @DisplayName("EC-P384 × SHA-{256,384,512} → DigestMethod + SignatureMethod URI tutarlı + verifier valid")
+    void ecHashAlgorithmVariations_emitConsistentXmlDsigUris(DigestAlgorithm hashAlgo) throws Exception {
         DigestAlgorithmResolverService mockResolver = mock(DigestAlgorithmResolverService.class);
         when(mockResolver.resolveDigestAlgorithm(any(X509Certificate.class))).thenReturn(hashAlgo);
 
@@ -122,7 +122,7 @@ class WsSecurityHashAlgorithmParametrizedTest {
         SignResponse signed = service.signSoapEnvelope(
                 soapDoc,
                 /*useSoap12*/ false,
-                rsa2048Material,
+                ec384Material,
                 /*alias*/ "test",
                 /*pin*/ new char[0]);
 
@@ -139,7 +139,7 @@ class WsSecurityHashAlgorithmParametrizedTest {
         Document signedDoc = parseXmlSecurely(signedBytes);
 
         String expectedDigestUri = expectedDigestMethodUri(hashAlgo);
-        String expectedSignatureUri = expectedRsaSignatureMethodUri(hashAlgo);
+        String expectedSignatureUri = expectedEcdsaSignatureMethodUri(hashAlgo);
 
         NodeList digestMethods = signedDoc.getElementsByTagNameNS(NS_DSIG, "DigestMethod");
         assertTrue(digestMethods.getLength() >= 1,
@@ -157,7 +157,7 @@ class WsSecurityHashAlgorithmParametrizedTest {
                 "Tek bir SignatureMethod beklenir");
         Element sm = (Element) signatureMethods.item(0);
         assertEquals(expectedSignatureUri, sm.getAttribute("Algorithm"),
-                "SignatureMethod/@Algorithm RSA + " + hashAlgo + " kombosuyla eşleşmeli");
+                "SignatureMethod/@Algorithm ECDSA + " + hashAlgo + " kombosuyla eşleşmeli");
 
         // Asıl tutarlılık testi: lokal XMLDsig verifier'ı geçer mi?
         // Verifier DigestMethod URI'sine bakıp aynı SHA ile c14n bytes'ı
@@ -166,7 +166,7 @@ class WsSecurityHashAlgorithmParametrizedTest {
         WsSecurityLocalXmlDsigVerifier.Result result =
                 WsSecurityLocalXmlDsigVerifier.validate(
                         signedBytes,
-                        rsa2048Material.getSigningCertificate().getPublicKey());
+                        ec384Material.getSigningCertificate().getPublicKey());
         assertTrue(result.isValid(),
                 "Lokal XMLDsig verifier SHA=" + hashAlgo + " ile reddetti: " + result);
     }
@@ -181,13 +181,13 @@ class WsSecurityHashAlgorithmParametrizedTest {
         }
     }
 
-    private static String expectedRsaSignatureMethodUri(DigestAlgorithm digest) {
-        // WsSecuritySignatureService#signatureMethodUri (RSA dalı):
+    private static String expectedEcdsaSignatureMethodUri(DigestAlgorithm digest) {
+        // WsSecuritySignatureService#signatureMethodUri (ECDSA dalı):
         //   SHA-256/384/512 hepsi xmldsig-more namespace'inde.
         switch (digest) {
-            case SHA256: return NS_DSIG_MORE + "rsa-sha256";
-            case SHA384: return NS_DSIG_MORE + "rsa-sha384";
-            case SHA512: return NS_DSIG_MORE + "rsa-sha512";
+            case SHA256: return NS_DSIG_MORE + "ecdsa-sha256";
+            case SHA384: return NS_DSIG_MORE + "ecdsa-sha384";
+            case SHA512: return NS_DSIG_MORE + "ecdsa-sha512";
             default:
                 throw new IllegalArgumentException("Test için desteklenmeyen SHA: " + digest);
         }

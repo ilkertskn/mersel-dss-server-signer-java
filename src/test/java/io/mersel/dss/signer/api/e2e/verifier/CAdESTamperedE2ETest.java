@@ -63,7 +63,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * <h3>Tag stratejisi</h3>
  * <p>{@code "verifier-e2e"} — Docker tabanlı verifier-api gerekli.
- * Tek RSA PFX × JCA backend.</p>
+ * Tek EC PFX × JCA backend.</p>
  */
 @ExtendWith(SignedArtifactExporter.class)
 @Epic("Negative — Tampering")
@@ -85,6 +85,7 @@ class CAdESTamperedE2ETest extends AbstractVerifierE2ETest {
         CryptoSignerService crypto = new CryptoSignerService(sigAlgResolver);
         cadesSignatureService = new CAdESSignatureService(
                 cadesService, crypto, digestResolver,
+                new io.mersel.dss.signer.api.services.timestamp.TimestampConfigurationService("", "", "", false),
                 new Semaphore(2));
         defaultMaterial = E2eSigningBackend.PFX_JCA.load(PfxTestKey.positiveValues()[0]);
     }
