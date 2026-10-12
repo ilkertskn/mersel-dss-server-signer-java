@@ -63,14 +63,14 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:8085/actuator/health || exit 1
 
 # Environment variables with defaults
-# Defaults: testkurum01 RSA-2048 test cert (trusted root compatible)
+# Defaults: testkurum17 EC-P384 test cert (trusted root compatible)
 # Override at runtime: docker run -e PFX_PATH=... -e CERTIFICATE_PIN=... -e CERTIFICATE_ALIAS=...
 ENV SERVER_PORT=8085 \
     LOG_PATH=/app/logs \
     JAVA_OPTS="-Xmx512m -Xms256m" \
     SPRING_PROFILES_ACTIVE=production \
-    PFX_PATH=/app/test-certs/testkurum01_rsa2048@test.com.tr_614573.pfx \
-    CERTIFICATE_PIN=614573 \
+    PFX_PATH=/app/test-certs/testkurum17_ec384@test.gov.tr_328829.pfx \
+    CERTIFICATE_PIN=328829 \
     CERTIFICATE_ALIAS=1
 
 # Run application

@@ -1,79 +1,116 @@
 package io.mersel.dss.signer.api.services.signature.pades;
 
-import com.itextpdf.text.pdf.*;
-import eu.europa.esig.dss.enumerations.DigestAlgorithm;
-import io.mersel.dss.signer.api.exceptions.SignatureException;
-import io.mersel.dss.signer.api.models.SignResponse;
-import io.mersel.dss.signer.api.models.SigningMaterial;
-import io.mersel.dss.signer.api.services.crypto.DigestAlgorithmResolverService;
-import io.mersel.dss.signer.api.services.crypto.SigningMaterialContentSigner;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.Semaphore;
+
 import org.apache.commons.io.IOUtils;
-import org.bouncycastle.asn1.ASN1EncodableVector;
-import org.bouncycastle.asn1.DERSet;
-import org.bouncycastle.asn1.cms.Attribute;
-import org.bouncycastle.asn1.cms.AttributeTable;
-import org.bouncycastle.asn1.ess.ESSCertIDv2;
-import org.bouncycastle.asn1.ess.SigningCertificateV2;
-import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
-import org.bouncycastle.asn1.x500.X500Name;
-import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
-import org.bouncycastle.asn1.x509.GeneralName;
-import org.bouncycastle.asn1.x509.GeneralNames;
-import org.bouncycastle.asn1.x509.IssuerSerial;
-import org.bouncycastle.cert.jcajce.JcaCertStore;
-import org.bouncycastle.cms.CMSProcessableByteArray;
-import org.bouncycastle.cms.CMSSignedData;
-import org.bouncycastle.cms.CMSSignedDataGenerator;
-import org.bouncycastle.cms.DefaultSignedAttributeTableGenerator;
-import org.bouncycastle.cms.jcajce.JcaSignerInfoGeneratorBuilder;
-import org.bouncycastle.operator.ContentSigner;
-import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDDocumentCatalog;
+import org.apache.pdfbox.pdmodel.PDDocumentNameDictionary;
+import org.apache.pdfbox.pdmodel.PDEmbeddedFilesNameTreeNode;
+import org.apache.pdfbox.pdmodel.common.filespecification.PDComplexFileSpecification;
+import org.apache.pdfbox.pdmodel.common.filespecification.PDEmbeddedFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.security.MessageDigest;
-import java.util.Calendar;
-import java.util.HashMap;
-import java.util.concurrent.Semaphore;
+import eu.europa.esig.dss.enumerations.DigestAlgorithm;
+import eu.europa.esig.dss.enumerations.MimeTypeEnum;
+import eu.europa.esig.dss.enumerations.SignatureLevel;
+import eu.europa.esig.dss.model.DSSDocument;
+import eu.europa.esig.dss.model.InMemoryDocument;
+import eu.europa.esig.dss.model.SignatureValue;
+import eu.europa.esig.dss.model.ToBeSigned;
+import eu.europa.esig.dss.pades.PAdESSignatureParameters;
+import eu.europa.esig.dss.pades.signature.PAdESService;
+import io.mersel.dss.signer.api.exceptions.SignatureException;
+import io.mersel.dss.signer.api.exceptions.TimestampException;
+import io.mersel.dss.signer.api.models.SignResponse;
+import io.mersel.dss.signer.api.models.SigningMaterial;
+import io.mersel.dss.signer.api.models.enums.PadesSignatureLevel;
+import io.mersel.dss.signer.api.services.crypto.CryptoSignerService;
+import io.mersel.dss.signer.api.services.crypto.DigestAlgorithmResolverService;
+import io.mersel.dss.signer.api.services.timestamp.TimestampConfigurationService;
 
 /**
  * PAdES (PDF İleri Seviye Elektronik İmza) imzaları oluşturan servis.
- * iText ve BouncyCastle kullanarak CAdES tabanlı PDF imzalama yapar.
- * 
- * <p>Özellikler:
+ *
+ * <p>EU DSS {@link PAdESService} (PDFBox 3 implementasyonu) üzerinden ETSI EN 319 142
+ * PAdES Baseline imzaları üretir. CAdES/XAdES ile aynı mimari kullanılır:</p>
+ *
  * <ul>
- *   <li>Gömülü CAdES imzası</li>
- *   <li>Dosya eki desteği</li>
- *   <li>Çoklu imza için ekleme modu</li>
- *   <li>SigningCertificateV2 özniteliği</li>
+ *   <li>{@link PAdESService} — PDF imza sözlüğü, incremental update yönetimi</li>
+ *   <li>{@link CryptoSignerService} — HSM-aware kriptografik imzalama</li>
+ *   <li>{@link DigestAlgorithmResolverService} — sertifikaya göre digest çözümleme</li>
+ *   <li>{@link TimestampConfigurationService} — T/LT/A seviyelerinde TSP source</li>
  * </ul>
+ *
+ * <h3>Seviyeler</h3>
+ * <p>{@link PadesSignatureLevel} ile B/T/LT/LTA seçilebilir. TSA gerektiren
+ * seviyeler (T/LT/A) için TSA yapılandırılmamışsa fail-fast
+ * ({@link TimestampException}).</p>
+ *
+ * <h3>Dosya eki</h3>
+ * <p>İsteğe bağlı dosya eki, imzadan <em>önce</em> PDFBox ile belgeye gömülür;
+ * böylece ek de imza kapsamına girer.</p>
+ *
+ * <h3>appendMode</h3>
+ * <p>DSS PAdES her zaman incremental update ile imzalar ve var olan imzaları
+ * korur. {@code appendMode} parametresi geriye dönük API uyumluluğu için kabul
+ * edilir; DSS akışında davranışsal bir farkı yoktur.</p>
  */
 @Service
 public class PAdESSignatureService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PAdESSignatureService.class);
-    private static final int SIGNATURE_SIZE_ESTIMATE = 8192;
+    private static final String DEFAULT_PDF_NAME = "document.pdf";
 
-    private final Semaphore semaphore;
+    private final PAdESService padesService;
+    private final CryptoSignerService cryptoSigner;
     private final DigestAlgorithmResolverService digestAlgorithmResolver;
+    private final TimestampConfigurationService timestampService;
+    private final Semaphore semaphore;
 
-    public PAdESSignatureService(Semaphore signatureSemaphore,
-                                 DigestAlgorithmResolverService digestAlgorithmResolver) {
-        this.semaphore = signatureSemaphore;
+    public PAdESSignatureService(PAdESService padesService,
+                                 CryptoSignerService cryptoSigner,
+                                 DigestAlgorithmResolverService digestAlgorithmResolver,
+                                 TimestampConfigurationService timestampService,
+                                 Semaphore signatureSemaphore) {
+        this.padesService = padesService;
+        this.cryptoSigner = cryptoSigner;
         this.digestAlgorithmResolver = digestAlgorithmResolver;
+        this.timestampService = timestampService;
+        this.semaphore = signatureSemaphore;
     }
 
     /**
-     * PDF belgesini PAdES imzası ile imzalar.
-     * 
-     * @param pdfInputStream PDF belgesi içeren input stream
-     * @param attachment İsteğe bağlı dosya eki içeriği
+     * PDF belgesini PAdES-BES seviyesinde imzalar (geriye dönük uyumlu overload).
+     */
+    public SignResponse signPdf(InputStream pdfInputStream,
+                               byte[] attachment,
+                               String attachmentFileName,
+                               boolean appendMode,
+                               SigningMaterial material) {
+        return signPdf(pdfInputStream, attachment, attachmentFileName, appendMode, material,
+                PadesSignatureLevel.PADES_BES);
+    }
+
+    /**
+     * PDF belgesini istenen PAdES seviyesinde imzalar.
+     *
+     * @param pdfInputStream     PDF belgesi içeren input stream
+     * @param attachment         İsteğe bağlı dosya eki içeriği (imzadan önce gömülür)
      * @param attachmentFileName İsteğe bağlı ek dosya adı
-     * @param appendMode İmzanın eklenmesi (true) veya yeni revizyon (false)
-     * @param material İmzalama sertifikası ve private key içeren materyal
+     * @param appendMode         API uyumluluğu için kabul edilir (DSS davranışını değiştirmez)
+     * @param material           İmzalama sertifikası ve private key içeren materyal
+     * @param signatureLevel     İstenen PAdES profili. B dışı seviyeler TSA gerektirir;
+     *                           yapılandırılmamışsa fail-fast. <strong>null geçilemez.</strong>
      * @return İmzalanmış PDF içeren yanıt
      */
     public SignResponse signPdf(InputStream pdfInputStream,
@@ -88,43 +125,43 @@ public class PAdESSignatureService {
             PdfStamper stamper = PdfStamper.createSignature(
                 reader, outputStream, '\0', null, appendMode);
 
-            // Dosya eki varsa ekle
+            byte[] pdfBytes = IOUtils.toByteArray(pdfInputStream);
+
+            // Dosya eki imzadan ÖNCE gömülür ki imza kapsamına dahil olsun.
             if (attachment != null && attachment.length > 0 && attachmentFileName != null) {
-                stamper.addFileAttachment(null, attachment, null, attachmentFileName);
+                pdfBytes = embedAttachment(pdfBytes, attachment, attachmentFileName);
             }
 
-            // İmza görünümünü yapılandır
-            PdfSignatureAppearance appearance = stamper.getSignatureAppearance();
-            appearance.setLocation("Turkey");
-            appearance.setSignDate(Calendar.getInstance());
+            DSSDocument document = new InMemoryDocument(pdfBytes, DEFAULT_PDF_NAME, MimeTypeEnum.PDF);
 
-            // İmza sözlüğünü oluştur
-            PdfSignature pdfSignature = new PdfSignature(
-                PdfName.ADOBE_PPKLITE, PdfName.ETSI_CADES_DETACHED);
-            pdfSignature.setReason(appearance.getReason());
-            pdfSignature.setLocation(appearance.getLocation());
-            pdfSignature.setContact(appearance.getContact());
-            pdfSignature.setDate(new PdfDate(appearance.getSignDate()));
-            appearance.setCryptoDictionary(pdfSignature);
+            DigestAlgorithm digestAlgorithm =
+                    digestAlgorithmResolver.resolveDigestAlgorithm(material.getSigningCertificate());
 
-            // İmza için yer ayır
-            HashMap<PdfName, Integer> exclusionSizes = new HashMap<>();
-            exclusionSizes.put(PdfName.CONTENTS, SIGNATURE_SIZE_ESTIMATE * 2 + 2);
-            appearance.preClose(exclusionSizes);
+            PAdESSignatureParameters parameters =
+                    buildParameters(digestAlgorithm, material, signatureLevel);
 
-            // CMS imzasını oluştur
-            byte[] signatureBytes = createCMSSignature(
-                appearance, material);
+            semaphore.acquire();
+            try {
+                ToBeSigned dataToSign = padesService.getDataToSign(document, parameters);
 
-            // İmzayı göm
-            PdfDictionary dictionary = new PdfDictionary();
-            dictionary.put(PdfName.CONTENTS, 
-                new PdfString(signatureBytes).setHexWriting(true));
-            appearance.close(dictionary);
+                SignatureValue signatureValue = cryptoSigner.sign(
+                        dataToSign, material, digestAlgorithm);
 
-            LOGGER.info("PAdES imzası başarıyla oluşturuldu");
-            return new SignResponse(outputStream.toByteArray(), null);
+                DSSDocument signedDocument = padesService.signDocument(document, parameters, signatureValue);
 
+                byte[] signedBytes = IOUtils.toByteArray(signedDocument.openStream());
+                String encodedSignature = Base64.getEncoder().encodeToString(signatureValue.getValue());
+
+                LOGGER.info("PAdES imzası başarıyla oluşturuldu (seviye: {})", signatureLevel);
+                return new SignResponse(signedBytes, encodedSignature);
+
+            } finally {
+                semaphore.release();
+            }
+
+        } catch (SignatureException e) {
+            // TimestampException de SignatureException alt sınıfıdır; olduğu gibi bubble eder.
+            throw e;
         } catch (Exception e) {
             LOGGER.error("PAdES imzası oluşturulurken hata", e);
             throw new SignatureException("PAdES imzası oluşturulamadı", e);
@@ -139,103 +176,68 @@ public class PAdESSignatureService {
     }
 
     /**
-     * PDF içeriği için CMS imzası oluşturur.
-     * SigningCertificateV2 özniteliği ile sertifikaya uygun hash algoritması kullanır.
-     *
-     * <p>Digest algoritması seçimi {@link DigestAlgorithmResolverService}'e
-     * delege edilir — CAdES/XAdES ile <b>aynı</b> mantık: yalnızca sertifikanın
-     * <b>public key</b> parametresine bakılır (EC için curve büyüklüğü
-     * NIST SP 800-57, RSA için SHA-256 default). CA'nın sertifikayı imzalarken
-     * kullandığı algoritma (<code>cert.getSigAlgName()</code>) <b>kasıtlı
-     * olarak yok sayılır</b>. Bu sayede aynı sertifikayla farklı imza
-     * formatlarında tutarlı digest kullanılır.</p>
+     * DSS {@link PAdESSignatureParameters} nesnesini oluşturur.
      */
-    private byte[] createCMSSignature(PdfSignatureAppearance appearance,
-                                     SigningMaterial material) throws Exception {
-        DigestAlgorithm digest = digestAlgorithmResolver.resolveDigestAlgorithm(
-            material.getSigningCertificate());
-        String digestAlgName = digest.getJavaName();
-        org.bouncycastle.asn1.ASN1ObjectIdentifier digestOid =
-            new org.bouncycastle.asn1.ASN1ObjectIdentifier(digest.getOid());
+    private PAdESSignatureParameters buildParameters(DigestAlgorithm digestAlgorithm,
+                                                     SigningMaterial material,
+                                                     PadesSignatureLevel signatureLevel) {
+        PAdESSignatureParameters parameters = new PAdESSignatureParameters();
+        parameters.setSignatureLevel(toDssLevel(signatureLevel));
+        parameters.setDigestAlgorithm(digestAlgorithm);
+        parameters.setSigningCertificate(material.getPrimaryCertificateToken());
+        parameters.setCertificateChain(material.getCertificateTokens());
+        parameters.setLocation("Turkey");
+        return parameters;
+    }
 
-        // SigningCertificateV2 için sertifika hash'i hesapla
-        MessageDigest messageDigest = MessageDigest.getInstance(digestAlgName);
-        byte[] certificateHash = messageDigest.digest(
-            material.getSigningCertificate().getEncoded());
-
-        // Issuer serial oluştur
-        GeneralName generalName = new GeneralName(
-            X500Name.getInstance(material.getSigningCertificate()
-                .getIssuerX500Principal().getEncoded()));
-        GeneralNames generalNames = new GeneralNames(generalName);
-        IssuerSerial issuerSerial = new IssuerSerial(
-            generalNames, material.getSigningCertificate().getSerialNumber());
-
-        // Create SigningCertificateV2 attribute
-        ESSCertIDv2 essCert = new ESSCertIDv2(
-            new AlgorithmIdentifier(digestOid),
-            certificateHash, issuerSerial);
-        SigningCertificateV2 signingCertificateV2 = new SigningCertificateV2(
-            new ESSCertIDv2[]{essCert});
-        Attribute signingCertAttr = new Attribute(
-            PKCSObjectIdentifiers.id_aa_signingCertificateV2,
-            new DERSet(signingCertificateV2));
-
-        // Build signed attributes
-        ASN1EncodableVector signedAttributes = new ASN1EncodableVector();
-        signedAttributes.add(signingCertAttr);
-        AttributeTable attributeTable = new AttributeTable(signedAttributes);
-
-        // Create signer
-        JcaSignerInfoGeneratorBuilder signerInfoGeneratorBuilder = 
-            new JcaSignerInfoGeneratorBuilder(
-                new JcaDigestCalculatorProviderBuilder().build())
-                .setSignedAttributeGenerator(
-                    new DefaultSignedAttributeTableGenerator(attributeTable));
-
-        // BC CMS imzasını SigningMaterial'ın tek sign kontratı üzerinden ata.
-        // PFX ve HSM ayrımı document-format katmanına sızmaz.
-        ContentSigner contentSigner = buildContentSigner(material, digest);
-
-        // Generate CMS signed data
-        CMSSignedDataGenerator generator = new CMSSignedDataGenerator();
-        generator.addSignerInfoGenerator(
-            signerInfoGeneratorBuilder.build(contentSigner, 
-                material.getSigningCertificate()));
-        generator.addCertificates(new JcaCertStore(material.getCertificateChain()));
-
-        // Sign PDF content
-        InputStream rangeStream = appearance.getRangeStream();
-        byte[] rangeBytes = IOUtils.toByteArray(rangeStream);
-
-        semaphore.acquire();
-        try {
-            CMSSignedData signedData = generator.generate(
-                new CMSProcessableByteArray(rangeBytes), false);
-            byte[] encodedSignature = signedData.getEncoded();
-
-            if (encodedSignature.length > SIGNATURE_SIZE_ESTIMATE) {
-                throw new SignatureException(
-                    "Signature size exceeds reserved space: " + 
-                    encodedSignature.length + " > " + SIGNATURE_SIZE_ESTIMATE);
-            }
-
-            // Pad signature to reserved size
-            byte[] paddedSignature = new byte[SIGNATURE_SIZE_ESTIMATE];
-            System.arraycopy(encodedSignature, 0, paddedSignature, 0, 
-                encodedSignature.length);
-
-            return paddedSignature;
-
-        } finally {
-            semaphore.release();
+    /**
+     * Uygulama seviyesi enum'unu DSS {@link SignatureLevel}'a eşler.
+     */
+    private static SignatureLevel toDssLevel(PadesSignatureLevel level) {
+        switch (level) {
+            case PADES_BES:
+                return SignatureLevel.PAdES_BASELINE_B;
+            case PADES_T:
+                return SignatureLevel.PAdES_BASELINE_T;
+            case PADES_LT:
+                return SignatureLevel.PAdES_BASELINE_LT;
+            case PADES_A:
+                return SignatureLevel.PAdES_BASELINE_LTA;
+            default:
+                throw new IllegalStateException("Beklenmeyen PAdES seviyesi: " + level);
         }
     }
 
     /**
-     * Material'in arka ucundan bağımsız tek {@link ContentSigner} üretir.
+     * PDF'e dosya ekini (embedded file) PDFBox ile gömer ve yeni PDF byte'larını döner.
+     * İmza işleminden önce çağrılır; ek böylece imza kapsamına dahil olur.
      */
-    private ContentSigner buildContentSigner(SigningMaterial material, DigestAlgorithm digest) throws Exception {
-        return new SigningMaterialContentSigner(material, digest);
+    private byte[] embedAttachment(byte[] pdfBytes, byte[] attachment, String fileName) {
+        try (PDDocument document = Loader.loadPDF(pdfBytes)) {
+            PDEmbeddedFile embeddedFile = new PDEmbeddedFile(document, new ByteArrayInputStream(attachment));
+            embeddedFile.setSize(attachment.length);
+
+            PDComplexFileSpecification fileSpecification = new PDComplexFileSpecification();
+            fileSpecification.setFile(fileName);
+            fileSpecification.setEmbeddedFile(embeddedFile);
+
+            Map<String, PDComplexFileSpecification> embeddedFileMap = new HashMap<>();
+            embeddedFileMap.put(fileName, fileSpecification);
+
+            PDEmbeddedFilesNameTreeNode efTree = new PDEmbeddedFilesNameTreeNode();
+            efTree.setNames(embeddedFileMap);
+
+            PDDocumentCatalog catalog = document.getDocumentCatalog();
+            PDDocumentNameDictionary names = new PDDocumentNameDictionary(catalog);
+            names.setEmbeddedFiles(efTree);
+            catalog.setNames(names);
+
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            document.save(outputStream);
+            return outputStream.toByteArray();
+
+        } catch (Exception e) {
+            throw new SignatureException("PDF dosya eki gömülemedi", e);
+        }
     }
 }

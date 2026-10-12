@@ -62,7 +62,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * DSS verifier API'sine gönderilir ve {@code TOTAL_PASSED} dönmesi beklenir.</p>
  *
  * <h2>Senaryo matrisi</h2>
- * <p>{@code 5 PFX × 4 belge tipi = 20 parametrize iterasyon}
+ * <p>{@code 3 PFX × 4 belge tipi = 12 parametrize iterasyon}
  * — {@link XadesDocumentFixture#standardFixtures()} TSA-bağımsız fixture
  * setini döndürür:</p>
  * <ul>
@@ -116,7 +116,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * </pre>
  *
  * <h2>Performans</h2>
- * <p>SoftHSM init + 5 PFX import + verifier container startup ≈ 30-60 saniye
+ * <p>SoftHSM init + 3 PFX import + verifier container startup ≈ 30-60 saniye
  * (per-class, bir kez). Sonraki 20 test her biri ≈ 1-2 saniye → toplam
  * yaklaşık 1-2 dakika.</p>
  */
@@ -159,7 +159,7 @@ class XadesSoftHsmVerifierE2ETest extends AbstractVerifierE2ETest {
         // 1) Native araç kontrolü; yoksa tüm class skip olur.
         hsm = SoftHsm2TestSupport.requireOrSkip(softHsmDir);
 
-        // 2) Tek bir token + 5 PFX (her biri unique label ile).
+        // 2) Tek bir token + 3 PFX (her biri unique label ile).
         // Yalnızca pozitif (Status.VALID) PFX'ler import edilir; negative
         // lifecycle PFX'leri CertificateLifecycleNegativeE2ETest'in scope'unda.
         hsm.initToken(TOKEN_LABEL, SO_PIN, USER_PIN);

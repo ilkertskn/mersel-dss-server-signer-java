@@ -73,9 +73,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  * </ol>
  *
  * <h3>PFX/backend stratejisi</h3>
- * <p>Tüm negative testler tek RSA PFX × JCA backend ile koşar. Tamper
+ * <p>Tüm negative testler tek EC PFX × JCA backend ile koşar. Tamper
  * davranışı XML-level (key-tipinden bağımsız) olduğu için 5×2 matriks
- * gereksiz CI yükü olur — yine de ilk RSA PFX'in tüm sign akışını
+ * gereksiz CI yükü olur — yine de ilk EC PFX'in tüm sign akışını
  * çalıştırması "regresyon tespiti için yeterli signal" kontratını sağlar.</p>
  *
  * <h3>Neden runtime üretim?</h3>

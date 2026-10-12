@@ -42,11 +42,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>Farklı binary girdi tiplerinin (UTF-8 text, ham binary, UTF-16 BOM)
  * signer'ın ContentInfo + digest akışını bozmadığını test eder. Mevcut
  * {@link CAdESSignAndVerifyE2ETest} CAdES yapı kontratını (attached vs
- * detached, 5 PFX × 2 backend) zaten kapsar; bu sınıf <b>tamamlayıcı</b>
+ * detached, 3 PFX × 2 backend) zaten kapsar; bu sınıf <b>tamamlayıcı</b>
  * fixture-content regresyon vektörüdür.</p>
  *
  * <h3>Senaryo matrisi</h3>
- * <p>Tek RSA PFX × JCA backend × 4 fixture = <b>4 senaryo</b>. Key-tipinden
+ * <p>Tek EC PFX × JCA backend × 4 fixture = <b>4 senaryo</b>. Key-tipinden
  * bağımsız (content-regression testi); 5×2 matriks CI yükü olur, değer
  * eklemez. EMPTY_BIN (0 byte) özel davranış: signer empty input'a hata
  * fırlatmalı (production kontratı), test onun yerine assertion farklı.</p>
@@ -86,13 +86,14 @@ class CAdESBinaryVariationsE2ETest extends AbstractVerifierE2ETest {
         CryptoSignerService crypto = new CryptoSignerService(sigAlgResolver);
         cadesSignatureService = new CAdESSignatureService(
                 cadesService, crypto, digestResolver,
+                new io.mersel.dss.signer.api.services.timestamp.TimestampConfigurationService("", "", "", false),
                 new Semaphore(2));
         defaultMaterial = E2eSigningBackend.PFX_JCA.load(PfxTestKey.positiveValues()[0]);
     }
 
     @ParameterizedTest(name = "{0} (attached)")
     @EnumSource(CadesBinaryFixture.class)
-    @DisplayName("CAdES binary variation: 4 fixture × tek RSA PFX × JCA × ATTACHED → verifier API")
+    @DisplayName("CAdES binary variation: 4 fixture × tek EC PFX × JCA × ATTACHED → verifier API")
     void cadesBinaryRoundtripIsValid(CadesBinaryFixture fixture) {
         byte[] data = fixture.readBytes();
 

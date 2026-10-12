@@ -17,6 +17,7 @@ import org.xipki.pkcs11.wrapper.PKCS11Constants;
 import org.xipki.pkcs11.wrapper.PKCS11Exception;
 import org.xipki.pkcs11.wrapper.PKCS11Module;
 import org.xipki.pkcs11.wrapper.PKCS11Token;
+import org.xipki.pkcs11.wrapper.Session;
 import org.xipki.pkcs11.wrapper.Slot;
 import org.xipki.pkcs11.wrapper.Token;
 import org.xipki.pkcs11.wrapper.TokenException;
@@ -107,6 +108,28 @@ public class IaikPkcs11Module implements InitializingBean, DisposableBean, Pkcs1
     private final boolean forceNullInitArgs;
 
     /**
+     * Bazı HSM cihazları (özellikle sıkı FIPS modunda çalışan ya da
+     * {@code CKA_PRIVATE=false} objeleri bile login'siz göstermeyen sürücüler)
+     * token'a dair <em>her</em> sorgudan — mekanizma listesi, public sertifika
+     * enumeration'ı dahil — önce açık ve authenticate edilmiş bir oturum
+     * bekler. Normal akışta {@code PKCS11Token} kurucusu login'i en sona
+     * bırakır: {@code C_GetTokenInfo} ve {@code C_GetMechanismList} çağrıları
+     * login'den ÖNCE gider ve bu cihazlarda {@code CKR_USER_NOT_LOGGED_IN} /
+     * boş sonuçla patlar.
+     *
+     * <p>{@code forceLogin=true} olduğunda token seçilir seçilmez ayrı bir
+     * bootstrap oturumu açılıp {@code C_Login(CKU_USER, pin)} yapılır; login
+     * durumu PKCS#11 spec gereği aynı uygulamanın tüm oturumlarına yayıldığı
+     * için sonraki tüm sorgular (mekanizma listesi, {@code C_FindObjects},
+     * listing) authenticated state'te koşar. Bu modda PIN <b>zorunludur</b>;
+     * login başarısızlığı fail-fast'tir.</p>
+     *
+     * <p>Env var: {@code PKCS11_FORCE_LOGIN=true}; CLI:
+     * {@code --list-certificates --force-login}.</p>
+     */
+    private final boolean forceLogin;
+
+    /**
      * Per-thread {@link CertificateFactory}. {@code CertificateFactory} JDK
      * specifikasyonunda <em>thread-safe garanti edilmiyor</em>: "Some
      * implementations are thread-safe ... while others are not." SUN sağlayıcı
@@ -119,6 +142,27 @@ public class IaikPkcs11Module implements InitializingBean, DisposableBean, Pkcs1
 
     private volatile PKCS11Module module;
     private volatile PKCS11Token token;
+
+    /**
+     * Ham (wrapper öncesi) {@link Token} referansı. Normalde tüm işlemler
+     * {@link #token} ({@link PKCS11Token} havuzu) üzerinden yürür; ancak bazı
+     * HSM'ler (ör. Sansec SecHSM) havuz session'ında {@code C_FindObjects}'i
+     * {@code CKR_USER_NOT_LOGGED_IN} ile reddediyor. Bu durumda listeleme
+     * yolunu, Pkcs11Admin gibi <b>kendi açtığımız tek bir session</b> üzerinde
+     * (login → find aynı session) çalıştırabilmek için ham token'ı saklıyoruz.
+     */
+    private volatile Token rawToken;
+
+    /**
+     * {@link #forceLogin} modunda açılan bootstrap oturumu. PKCS#11 spec §11.6:
+     * bir uygulamanın token'a açık son oturumu kapandığında login durumu da
+     * düşer (token public state'e döner). Bootstrap oturumunu login sonrası
+     * hemen kapatsaydık, {@link PKCS11Token} kendi oturumunu açana kadarki
+     * pencerede authenticated state kaybolabilirdi. Bu yüzden oturum modül
+     * yaşam döngüsü boyunca açık tutulur; {@link #destroy()} ve reinit
+     * yollarında kapatılır.
+     */
+    private volatile Session forceLoginBootstrapSession;
 
     /**
      * {@link #reinitializeForSmsRecovery(String, String)} ile {@link #destroy()}
@@ -214,24 +258,38 @@ public class IaikPkcs11Module implements InitializingBean, DisposableBean, Pkcs1
     }
 
     /**
-     * Tam ctor — session pool boyutunu dışarıdan kontrol etmek isteyen
-     * üretim yapılandırması ({@code SignatureConfiguration} bean factory)
-     * bu formu kullanır.
+     * Geriye uyumlu 6-arg ctor: {@code forceLogin=false}. Mevcut üretim
+     * yapılandırması bu formu kullanır.
+     */
+    public IaikPkcs11Module(String libraryPath, Long slot, Long slotIndex, char[] pin,
+                            boolean forceNullInitArgs, int sessionPoolSize) {
+        this(libraryPath, slot, slotIndex, pin, forceNullInitArgs, sessionPoolSize, false);
+    }
+
+    /**
+     * Tam ctor — session pool boyutunu ve login stratejisini dışarıdan
+     * kontrol etmek isteyen yapılandırmalar ({@code SignatureConfiguration}
+     * bean factory, CLI {@code --force-login} yolu) bu formu kullanır.
      *
      * @param sessionPoolSize {@link PKCS11Token} ctor'una geçilecek
      *                        {@code numSessions} değeri. {@code <= 0} ise
      *                        wrapper default'u (32) uygulanır. AKİS
      *                        ({@code forceNullInitArgs=true}) yolunda
      *                        bu değer yoksayılır ve 1 forced.
+     * @param forceLogin      {@code true} ise token seçilir seçilmez, henüz
+     *                        mekanizma listesi ve obje sorgusu yapılmadan
+     *                        {@code C_Login(CKU_USER, pin)} yapılır (bkz.
+     *                        {@link #forceLogin} Javadoc'u). PIN zorunlu olur.
      */
     public IaikPkcs11Module(String libraryPath, Long slot, Long slotIndex, char[] pin,
-                            boolean forceNullInitArgs, int sessionPoolSize) {
+                            boolean forceNullInitArgs, int sessionPoolSize, boolean forceLogin) {
         this.libraryPath = libraryPath;
         this.slot = slot;
         this.slotIndex = slotIndex;
         this.pin = pin == null ? null : pin.clone();
         this.forceNullInitArgs = forceNullInitArgs;
         this.sessionPoolSize = sessionPoolSize;
+        this.forceLogin = forceLogin;
     }
 
     // --------------------------------------------------------------------
@@ -266,6 +324,18 @@ public class IaikPkcs11Module implements InitializingBean, DisposableBean, Pkcs1
         singleThreadedMode = outcome.singleThreaded;
 
         Token rawToken = resolveToken();
+        this.rawToken = rawToken;
+
+        // Force-login: bazı HSM'ler token metadata / mekanizma listesi /
+        // public obje sorgularını bile authenticated oturum olmadan
+        // reddediyor. PKCS11Token ctor'u login'i en sona bıraktığı için
+        // (getTokenInfo + getMechanismList login'den önce koşar) bu
+        // cihazlarda init patlar. Burada, token'a dokunan ilk sorgudan
+        // önce bootstrap oturum + C_Login yapıyoruz.
+        if (forceLogin) {
+            performForceLogin(rawToken);
+        }
+
         TokenInfo info = rawToken.getTokenInfo();
         LOGGER.info("Token açıldı: label='{}', manufacturer='{}', serial='{}'",
             safeTrim(info.getLabel()),
@@ -325,10 +395,70 @@ public class IaikPkcs11Module implements InitializingBean, DisposableBean, Pkcs1
         }
     }
 
+    /**
+     * {@link #forceLogin} yolu: token üzerinde bootstrap RO oturum açar ve
+     * hemen {@code C_Login(CKU_USER, pin)} yapar. Login durumu aynı
+     * uygulamanın tüm oturumlarına yayıldığından, bundan sonraki
+     * {@code C_GetMechanismList} / {@code C_FindObjects} çağrıları
+     * authenticated state'te koşar.
+     *
+     * <p>Fail-fast kontrat: PIN yoksa veya login reddedilirse init'i
+     * durduruyoruz — bu mod tam da "login'siz sorgu çalışmıyor" cihazları
+     * için istendiğinden sessizce anonymous moda düşmek anlamsız olurdu.
+     * Tek tolere edilen durum {@code CKR_USER_ALREADY_LOGGED_IN} (aynı
+     * process'te başka bir bileşen login olmuş demektir).</p>
+     */
+    private void performForceLogin(Token rawToken) throws TokenException {
+        if (pin == null || pin.length == 0) {
+            throw new KeyStoreException(
+                "PKCS11_FORCE_LOGIN aktif ama PIN sağlanmadı. Force-login modu "
+                + "token sorgularından önce C_Login gerektirir; CERTIFICATE_PIN "
+                + "env var'ını ayarlayın.");
+        }
+        Session bootstrap = rawToken.openSession(false /* rwSession=false → RO oturum */);
+        try {
+            bootstrap.login(PKCS11Constants.CKU_USER, pin);
+            LOGGER.info("Force-login: token sorgularından önce USER login yapıldı "
+                + "(bootstrap session handle=0x{}).",
+                Long.toHexString(bootstrap.getSessionHandle()));
+        } catch (PKCS11Exception e) {
+            if (e.getErrorCode() == PKCS11Constants.CKR_USER_ALREADY_LOGGED_IN) {
+                LOGGER.info("Force-login: kullanıcı zaten login durumda "
+                    + "(CKR_USER_ALREADY_LOGGED_IN); mevcut oturum state'i kullanılacak.");
+            } else {
+                try {
+                    bootstrap.closeSession();
+                } catch (Exception ignored) {
+                }
+                throw new KeyStoreException(
+                    "Force-login başarısız (CKR=0x" + Long.toHexString(e.getErrorCode())
+                    + "): " + e.getMessage() + ". PIN'i ve token durumunu kontrol edin.", e);
+            }
+        }
+        // Oturum açık kalmalı: uygulamanın son oturumu kapanırsa PKCS#11
+        // spec gereği login durumu da düşer. destroy()/reinit kapatır.
+        forceLoginBootstrapSession = bootstrap;
+    }
+
+    /** Bootstrap oturumu (varsa) sessizce kapatır; login state'i token teardown'ına bırakır. */
+    private void closeForceLoginBootstrapSession() {
+        Session bootstrap = forceLoginBootstrapSession;
+        if (bootstrap != null) {
+            try {
+                bootstrap.closeSession();
+            } catch (Exception e) {
+                LOGGER.debug("Force-login bootstrap session kapatılırken (yoksayılan) hata: {}",
+                    e.getMessage());
+            }
+            forceLoginBootstrapSession = null;
+        }
+    }
+
     @Override
     public void destroy() {
         synchronized (this) {
             try {
+                closeForceLoginBootstrapSession();
                 if (token != null) {
                     try {
                         token.logout();
@@ -342,6 +472,7 @@ public class IaikPkcs11Module implements InitializingBean, DisposableBean, Pkcs1
                     }
                     token = null;
                 }
+                rawToken = null;
                 if (module != null) {
                     if (ownsInitialization) {
                         try {
@@ -456,11 +587,13 @@ public class IaikPkcs11Module implements InitializingBean, DisposableBean, Pkcs1
      * </ul>
      */
     private void closeQuietlyForReinit() {
+        closeForceLoginBootstrapSession();
         if (token != null) {
             try { token.logout(); } catch (Exception ignored) { }
             try { token.closeAllSessions(); } catch (Exception ignored) { }
             token = null;
         }
+        rawToken = null;
         if (module != null) {
             try {
                 module.finalize(null);
@@ -504,14 +637,37 @@ public class IaikPkcs11Module implements InitializingBean, DisposableBean, Pkcs1
     }
 
     public Pkcs11Signer findSigner(String alias, String serialHex) {
-        String cacheKey = (alias == null ? "" : alias) + "|" + (serialHex == null ? "" : serialHex);
+        // Savunmacı: Windows'ta `SET VAR="deger"` değeri tırnaklarla birlikte
+        // ortam değişkenine yazar (`"7720..._CER"`). Bu tırnaklar alias/serial
+        // eşleşmesini bozar; baş/sondaki eşleşen tırnak çiftini temizliyoruz.
+        final String cleanAlias = stripSurroundingQuotes(alias);
+        final String cleanSerialHex = stripSurroundingQuotes(serialHex);
+        String cacheKey = (cleanAlias == null ? "" : cleanAlias)
+            + "|" + (cleanSerialHex == null ? "" : cleanSerialHex);
 
         // ConcurrentHashMap.computeIfAbsent → tek anahtar için tek arama;
         // farklı alias talepleri paralel çözümlenir.
         ResolvedKey resolved = resolvedKeyCache.computeIfAbsent(cacheKey,
-            k -> resolveFromToken(alias, serialHex));
+            k -> resolveFromToken(cleanAlias, cleanSerialHex));
 
         return new IaikPkcs11Signer(this, resolved);
+    }
+
+    /**
+     * Baş ve sondaki eşleşen tek/çift tırnak çiftini kaldırır. Yalnızca her iki
+     * uçta da aynı tırnak varsa soyar; ortadaki tırnaklara dokunmaz. Windows
+     * {@code SET VAR="deger"} tuzağına karşı savunma.
+     */
+    private static String stripSurroundingQuotes(String value) {
+        if (value == null || value.length() < 2) {
+            return value;
+        }
+        char first = value.charAt(0);
+        char last = value.charAt(value.length() - 1);
+        if ((first == '"' || first == '\'') && first == last) {
+            return value.substring(1, value.length() - 1);
+        }
+        return value;
     }
 
     private ResolvedKey resolveFromToken(String alias, String serialHex) {
@@ -1022,15 +1178,185 @@ public class IaikPkcs11Module implements InitializingBean, DisposableBean, Pkcs1
     // Helpers
     // --------------------------------------------------------------------
 
-    /** Token üzerindeki tüm cert ve private key objelerini handle + label + cert + id ile derle. */
+    /**
+     * Token üzerindeki tüm cert ve private key objelerini handle + label + cert
+     * + id ile derler.
+     *
+     * <h3>Sansec SecHSM (ve benzeri) uyumluluk retry'si</h3>
+     * <p>Bazı HSM'ler (ör. Sansec SecHSM V2-1 / GM cihazları) login sonrası
+     * {@code C_GetSessionInfo}'da session'ı "USER logged-in" gösterir; bu
+     * yüzden xipki {@code PKCS11Token.borrowSession} tekrar login yapmaz. Ama
+     * aynı session'da {@code C_FindObjectsInit} çağrısı yine
+     * {@code CKR_USER_NOT_LOGGED_IN} döndürür — cihaz login'in <b>op'tan hemen
+     * önce</b> yapılmasını bekler.</p>
+     *
+     * <p>xipki'nin imza yolu ({@code opInit}) bunu {@code CKR_USER_NOT_LOGGED_IN}'de
+     * login'i tekrarlayarak aşar; fakat {@code findAllObjects} yolunda böyle bir
+     * retry yoktur. Burada aynı stratejiyi listeleme yoluna uyguluyoruz:
+     * {@code token.logout()} ile session'ı public state'e düşürüp aramayı tekrar
+     * deniyoruz — böylece {@code borrowSession} login'i {@code C_FindObjects}'ten
+     * hemen önce yeniden yapar (tam da Pkcs11Admin'in yaptığı davranış).</p>
+     *
+     * <p>Retry yalnızca bu spesifik hata kodunda tetiklenir; standart HSM'lerde
+     * davranış değişmez.</p>
+     */
     private List<TokenObject> collectAllRelevantObjects() {
         ensureTokenOpen();
+        try {
+            return collectWith(poolReader());
+        } catch (KeyStoreException e) {
+            if (!isUserNotLoggedIn(e)) {
+                throw e;
+            }
+            // Sansec SecHSM benzeri cihazlar: xipki havuz session'ında login
+            // "successful" dönse bile C_FindObjects CKR_USER_NOT_LOGGED_IN
+            // veriyor (login op'tan hemen önce ve/veya farklı session tipinde
+            // gerekiyor). Pkcs11Admin gibi kendi açtığımız tek bir session
+            // üzerinde (login → find aynı session) yeniden deniyoruz.
+            LOGGER.warn("Havuz session'ında C_FindObjects CKR_USER_NOT_LOGGED_IN döndü; "
+                + "listeleme kendi (dedicated) session'ımızda yeniden deneniyor "
+                + "(Pkcs11Admin davranışı).");
+            return collectViaDedicatedSession();
+        }
+    }
+
+    /**
+     * {@link Throwable} zincirinde {@link PKCS11Exception} olarak
+     * {@code CKR_USER_NOT_LOGGED_IN} olup olmadığını arar.
+     */
+    private static boolean isUserNotLoggedIn(Throwable t) {
+        for (Throwable cause = t; cause != null; cause = cause.getCause()) {
+            if (cause instanceof PKCS11Exception
+                && ((PKCS11Exception) cause).getErrorCode()
+                    == PKCS11Constants.CKR_USER_NOT_LOGGED_IN) {
+                return true;
+            }
+            if (cause.getCause() == cause) {
+                break;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Token okuma soyutlaması: nesne bulma + attribute okuma. Böylece obje
+     * derleme mantığı hem {@link PKCS11Token} havuzu hem de kendi açtığımız ham
+     * {@link Session} üzerinde tek koddan çalışır.
+     */
+    private interface TokenReader {
+        long[] findAll(AttributeVector template) throws TokenException;
+        AttributeVector attrs(long handle, long... types) throws TokenException;
+    }
+
+    /** {@link #token} ({@link PKCS11Token} havuzu) üzerinden okuyan reader. */
+    private TokenReader poolReader() {
+        return new TokenReader() {
+            @Override
+            public long[] findAll(AttributeVector template) throws TokenException {
+                return token.findAllObjects(template);
+            }
+            @Override
+            public AttributeVector attrs(long handle, long... types) throws TokenException {
+                return token.getAttrValues(handle, types);
+            }
+        };
+    }
+
+    /**
+     * Listeleme yolunu, xipki havuzunu bypass ederek <b>kendi açtığımız tek bir
+     * session</b> üzerinde çalıştırır: session'ı aç → login → find (hepsi aynı
+     * session, arada başka çağrı yok). Bu, Pkcs11Admin'in davranışını birebir
+     * taklit eder ve havuz session'ında login'i "unutan" Sansec benzeri
+     * cihazlarda çözüm sağlar.
+     *
+     * <p>Sansec find için R/W login isteyebildiğinden önce R/W session denenir;
+     * açılamazsa RO'ya düşülür. İlk find yine {@code CKR_USER_NOT_LOGGED_IN}
+     * verirse aynı session üzerinde logout+relogin ile bir kez daha denenir
+     * (tek-login-session gereksinimi olan cihazlar için).</p>
+     */
+    private List<TokenObject> collectViaDedicatedSession() {
+        Token rt = this.rawToken;
+        if (rt == null) {
+            throw new KeyStoreException("Dedicated session için ham token referansı yok "
+                + "(modül kapanmış olabilir).");
+        }
+        if (pin == null || pin.length == 0) {
+            throw new KeyStoreException("Dedicated session login için PIN gerekli ama sağlanmadı.");
+        }
+        Session session = null;
+        try {
+            session = openDedicatedSession(rt);
+            loginDedicated(session);
+            final Session fs = session;
+            TokenReader reader = new TokenReader() {
+                @Override
+                public long[] findAll(AttributeVector template) throws TokenException {
+                    return fs.findAllObjectsSingle(template);
+                }
+                @Override
+                public AttributeVector attrs(long handle, long... types) throws TokenException {
+                    return fs.getAttrValues(handle, types);
+                }
+            };
+            try {
+                return collectWith(reader);
+            } catch (KeyStoreException e) {
+                if (!isUserNotLoggedIn(e)) {
+                    throw e;
+                }
+                // Tek-login-session cihazı: bu session'ı tek authenticated
+                // session yapmak için logout (app-wide) + relogin, sonra find.
+                LOGGER.warn("Dedicated session'da C_FindObjects yine CKR_USER_NOT_LOGGED_IN; "
+                    + "logout+relogin ile son deneme yapılıyor.");
+                try { fs.logout(); } catch (Exception ignore) { }
+                loginDedicated(fs);
+                return collectWith(reader);
+            }
+        } catch (TokenException e) {
+            throw new KeyStoreException("Token nesneleri okunamadı (dedicated session)", e);
+        } finally {
+            if (session != null) {
+                // Not: bilinçli olarak logout ÇAĞIRMIYORUZ — logout app-wide'dır
+                // ve açık PKCS11Token havuz session'larının login'ini de düşürür.
+                // Sadece kendi session'ımızı kapatıyoruz.
+                try {
+                    session.closeSession();
+                } catch (Exception ignore) {
+                }
+            }
+        }
+    }
+
+    /** R/W session açmayı dener; HSM RW vermezse RO session'a düşer. */
+    private Session openDedicatedSession(Token rt) throws PKCS11Exception {
+        try {
+            return rt.openSession(true /* rwSession */);
+        } catch (PKCS11Exception rwEx) {
+            LOGGER.warn("Dedicated R/W session açılamadı (CKR=0x{}); RO session'a düşülüyor.",
+                Long.toHexString(rwEx.getErrorCode()));
+            return rt.openSession(false /* rwSession */);
+        }
+    }
+
+    /** Verilen session'a USER login yapar; {@code CKR_USER_ALREADY_LOGGED_IN} tolere edilir. */
+    private void loginDedicated(Session session) throws PKCS11Exception {
+        try {
+            session.login(PKCS11Constants.CKU_USER, pin);
+        } catch (PKCS11Exception e) {
+            if (e.getErrorCode() != PKCS11Constants.CKR_USER_ALREADY_LOGGED_IN) {
+                throw e;
+            }
+        }
+    }
+
+    /** Verilen {@link TokenReader} üzerinden token objelerini derler. */
+    private List<TokenObject> collectWith(TokenReader reader) {
         List<TokenObject> result = new ArrayList<>();
         try {
             // 1) Tüm X.509 sertifikalar
-            long[] certHandles = token.findAllObjects(AttributeVector.newX509Certificate());
+            long[] certHandles = reader.findAll(AttributeVector.newX509Certificate());
             for (long handle : certHandles) {
-                AttributeVector av = token.getAttrValues(handle,
+                AttributeVector av = reader.attrs(handle,
                     PKCS11Constants.CKA_LABEL,
                     PKCS11Constants.CKA_ID,
                     PKCS11Constants.CKA_VALUE);
@@ -1042,9 +1368,9 @@ public class IaikPkcs11Module implements InitializingBean, DisposableBean, Pkcs1
             }
 
             // 2) Tüm private key'ler
-            long[] keyHandles = token.findAllObjects(AttributeVector.newPrivateKey());
+            long[] keyHandles = reader.findAll(AttributeVector.newPrivateKey());
             for (long handle : keyHandles) {
-                AttributeVector av = token.getAttrValues(handle,
+                AttributeVector av = reader.attrs(handle,
                     PKCS11Constants.CKA_LABEL,
                     PKCS11Constants.CKA_ID);
                 String label = av.getStringAttrValue(PKCS11Constants.CKA_LABEL);
@@ -1053,6 +1379,18 @@ public class IaikPkcs11Module implements InitializingBean, DisposableBean, Pkcs1
                 // Aynı cert ile eşleşen TokenObject zaten varsa private
                 // key handle'ını oraya iliştir; aksi halde key-only entry oluştur.
                 TokenObject match = findByIdOrLabel(result, id, label, true);
+                if (match == null) {
+                    // Son çare: TÜBİTAK Mali Mühür / Sansec convention'ı —
+                    // sertifika label'ı, key label'ının sonuna "_CER" eklenmiş
+                    // hali (key "..._MUS" ↔ cert "..._MUS_CER") ve CKA_ID
+                    // paylaşılmıyor. Yalnızca tek-eşleşme garantisiyle bağla.
+                    match = findCertByKeyLabelConvention(result, label);
+                    if (match != null) {
+                        LOGGER.info("Sertifika-key eşleşmesi label convention'ı ile kuruldu: "
+                            + "key CKA_LABEL='{}' ↔ cert CKA_LABEL='{}' (CKA_ID paylaşılmıyor).",
+                            label, match.label);
+                    }
+                }
                 if (match != null) {
                     // Güvenlik (Codex regresyonu, Mayıs 2026): cert'e zaten
                     // bir private key bağlandıysa, ikinci bağlama girişimi
@@ -1196,6 +1534,42 @@ public class IaikPkcs11Module implements InitializingBean, DisposableBean, Pkcs1
         return null;
     }
 
+    /**
+     * Sertifika ile private key'in <b>farklı CKA_LABEL</b> ve <b>paylaşılmayan
+     * CKA_ID</b> ile saklandığı token'lar (ör. TÜBİTAK Mali Mühür / Sansec
+     * SecHSM) için son-çare eşleştirme.
+     *
+     * <p>Bu token'larda sertifika label'ı, key label'ının sonuna sabit bir
+     * {@code _CER} eki eklenmiş halidir (örn. key {@code 7720675249_2026_MUS}
+     * ↔ cert {@code 7720675249_2026_MUS_CER}). Standart ID/label eşleştirmesi
+     * (bkz. {@link #findByIdOrLabel}) başarısız olduğunda çağrılır.</p>
+     *
+     * <p>Güvenlik: yalnızca <b>tek</b> aday sertifika varsa eşleştirir; birden
+     * fazla ya da hiç aday yoksa {@code null} döner (sessiz yanlış imza
+     * riskinden kaçınmak için).</p>
+     */
+    private static TokenObject findCertByKeyLabelConvention(List<TokenObject> objects, String keyLabel) {
+        if (keyLabel == null || keyLabel.isEmpty()) {
+            return null;
+        }
+        String expectedCertLabel = keyLabel + "_CER";
+        TokenObject only = null;
+        int matches = 0;
+        for (TokenObject obj : objects) {
+            if (obj.cert == null) {
+                continue;
+            }
+            if (!expectedCertLabel.equals(obj.label)) {
+                continue;
+            }
+            only = obj;
+            if (++matches > 1) {
+                break;
+            }
+        }
+        return matches == 1 ? only : null;
+    }
+
     private void ensureTokenOpen() {
         if (token == null) {
             throw new KeyStoreException("ipkcs11wrapper modülü kapalı veya init edilmedi");
@@ -1224,6 +1598,7 @@ public class IaikPkcs11Module implements InitializingBean, DisposableBean, Pkcs1
     }
 
     private void cleanupOnFailure() {
+        closeForceLoginBootstrapSession();
         try { if (token != null) token.closeAllSessions(); } catch (Exception ignored) { }
         // Sadece bizim initialize ettiğimiz Cryptoki'yi finalize et — paylaşımlı
         // state korunmalı (destroy()'daki aynı ownership kuralı). Aksi halde
@@ -1232,6 +1607,7 @@ public class IaikPkcs11Module implements InitializingBean, DisposableBean, Pkcs1
             try { module.finalize(null); } catch (Exception ignored) { }
         }
         token = null;
+        rawToken = null;
         module = null;
         ownsInitialization = false;
         singleThreadedMode = false;

@@ -106,9 +106,9 @@ class HashSignSoftHsm2IntegrationTest {
      */
     @ParameterizedTest(name = "[{index}] {0} — pre-hashed digest sign + verify")
     @EnumSource(value = PfxTestKey.class, mode = Mode.EXCLUDE,
-            names = {"KAMUSM_REVOKED_RSA2048", "KAMUSM_REVOKED_EC384",
-                     "KAMUSM_EXPIRED_RSA2048", "KAMUSM_EXPIRED_EC384",
-                     "KAMUSM_SUSPENDED_RSA2048", "KAMUSM_SUSPENDED_EC384"})
+            names = {"KAMUSM_REVOKED_EC384",
+                     "KAMUSM_EXPIRED_EC384",
+                     "KAMUSM_SUSPENDED_EC384"})
     void hashSign_throughRealSoftHsmStack_roundtrip(PfxTestKey key) throws Exception {
         try (SoftHsm2TestSupport hsm = SoftHsm2TestSupport.requireOrSkip(tempDir)) {
             String tokenLabel = TOKEN_LABEL_PREFIX + key.name().toLowerCase();
@@ -153,15 +153,16 @@ class HashSignSoftHsm2IntegrationTest {
                     "Gerçek HSM hashsign çıktısı public key ile doğrulanmalı "
                             + "(alg=" + jcaAlg + ", key=" + key + ")");
 
-            // Negatif (double-hash regression guard): RSA için yalnızca anlamlı.
-            // Eğer service double-hash yapsaydı, ürettiği imza
-            // SHA-256(SHA-256(payload)) = SHA-256(digest) ile verify(digest)
-            // edildiğinde geçerdi. Geçmemesi gerek.
-            if ("RSA".equalsIgnoreCase(material.getSigningCertificate().getPublicKey().getAlgorithm())
-                    && digestAlg == DigestAlgorithm.SHA256) {
+            // Negatif (double-hash regression guard): JCA verify kendi
+            // digest'ini uyguladığı için EC'de de anlamlı. Eğer service
+            // double-hash yapsaydı, ürettiği imza digest'in verify'ı ile
+            // geçerdi. Geçmemesi gerek.
+            {
+                String guardAlg = jcaVerifyAlgorithm(
+                        material.getSigningCertificate().getPublicKey(), digestAlg);
                 assertFalse(verifyContent(material.getSigningCertificate(), digest, signature,
-                                "SHA256withRSA"),
-                        "Service çıktısı SHA-256(SHA-256(payload)) imzasıyla eşleşmemeli "
+                                guardAlg),
+                        "Service çıktısı double-hash imzasıyla eşleşmemeli "
                                 + "(double-hash regresyonu — gerçek HSM yolunda); key=" + key);
             }
         }
@@ -174,7 +175,7 @@ class HashSignSoftHsm2IntegrationTest {
      */
     @ParameterizedTest(name = "[{index}] {0} — validation HSM yoluna sızmamalı")
     @EnumSource(value = PfxTestKey.class, mode = Mode.INCLUDE,
-            names = {"KURUM01_RSA2048", "KURUM02_EC384"})
+            names = {"KURUM17_EC384", "KURUM02_EC384"})
     void wrongLengthDigest_rejectedAtServiceLayer_beforeHsmCall(PfxTestKey key) throws Exception {
         try (SoftHsm2TestSupport hsm = SoftHsm2TestSupport.requireOrSkip(tempDir)) {
             String tokenLabel = VALIDATION_TOKEN_LABEL_PREFIX + key.name().toLowerCase();

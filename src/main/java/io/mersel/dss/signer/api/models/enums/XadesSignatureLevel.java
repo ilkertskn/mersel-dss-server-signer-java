@@ -11,6 +11,9 @@ package io.mersel.dss.signer.api.models.enums;
  * <h3>Profiller</h3>
  * <ul>
  *   <li>{@link #XADES_BES} — Yalnızca imza, TSA çağrılmaz.</li>
+ *   <li>{@link #XADES_T}   — İmza timestamp'i eklenir; TSA gerekir.</li>
+ *   <li>{@link #XADES_LT}  — Uzun dönem doğrulama verisi (sertifika + iptal değerleri,
+ *       legacy XAdES-X-L); imza timestamp'i içerir, TSA gerekir.</li>
  *   <li>{@link #XADES_A}   — Archive timestamp ile genişletilmiş profil; TSA gerekir.</li>
  * </ul>
  *
@@ -27,9 +30,12 @@ package io.mersel.dss.signer.api.models.enums;
  *
  * <h3>DSS Eşlemesi</h3>
  * <ul>
- *   <li>{@code XADES_BES} → {@code eu.europa.esig.dss.enumerations.SignatureLevel.XAdES_BASELINE_B}</li>
- *   <li>{@code XADES_A}   → {@code eu.europa.esig.dss.enumerations.SignatureLevel.XAdES_BASELINE_LTA}
- *       (legacy ETSI TS 101 903 terminolojisindeki XAdES-A profili)</li>
+ *   <li>{@code XADES_BES} → {@code XAdES_BASELINE_B} (override edilmiş baseline imza)</li>
+ *   <li>{@code XADES_T}   → {@code XAdESLevelBaselineT} (signature timestamp)</li>
+ *   <li>{@code XADES_LT}  → {@code XAdESLevelXL} (legacy XAdES-X-L: CertificateValues +
+ *       RevocationValues; OCSP/CRL cache override'ı bu yolda devrededir)</li>
+ *   <li>{@code XADES_A}   → {@code XAdESLevelA}
+ *       (legacy ETSI TS 101 903 terminolojisindeki XAdES-A / archive profili)</li>
  * </ul>
  */
 public enum XadesSignatureLevel {
@@ -41,6 +47,27 @@ public enum XadesSignatureLevel {
      * e-Döviz raporu (iptal hariç) vb. timestamp gerektirmeyen tüm akışlar için.
      */
     XADES_BES,
+
+    /**
+     * XAdES-T profili: baseline imzaya bir <code>SignatureTimeStamp</code> eklenir.
+     * İmzanın belirli bir andan önce var olduğunu ispatlar.
+     *
+     * <p><strong>Zorunlu önkoşul</strong>: TSA host'u yapılandırılmış olmalı
+     * (örn. {@code TS_SERVER_HOST}). Aksi halde imza akışı fail-fast olarak
+     * {@code TIMESTAMP_ERROR} ile reddedilir.</p>
+     */
+    XADES_T,
+
+    /**
+     * XAdES-LT profili (legacy XAdES-X-L): imza + signature timestamp + uzun dönem
+     * doğrulama verisi (<code>CertificateValues</code> ve <code>RevocationValues</code>
+     * — gömülü sertifika zinciri, OCSP/CRL yanıtları). Doğrulayanın çevrimiçi
+     * kaynaklara erişmeden imzayı uzun vadede doğrulamasını sağlar.
+     *
+     * <p><strong>Zorunlu önkoşul</strong>: TSA host'u yapılandırılmış olmalı; aksi
+     * halde fail-fast olarak {@code TIMESTAMP_ERROR} döner.</p>
+     */
+    XADES_LT,
 
     /**
      * Baseline-LTA profili (legacy adıyla XAdES-A): imza + signature timestamp +

@@ -7,6 +7,156 @@ ve bu proje [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kullanmak
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-01
+
+### Changed (BREAKING — bu sürüm MAJOR'dur: 2.0.0)
+
+- **`TestCompany.TestKurum1` enum değeri kaldırıldı → `TestKurum17`.**
+  `/v1/testusercountersign` isteğinde `testCompany: "TestKurum1"` gönderen
+  client'lar artık deserialization hatası (400) alır. `TestKurum2` /
+  `TestKurum3` isimleri korundu ama altındaki sertifika RSA-2048 → EC-P384'ye
+  değişti (bkz. aşağıdaki envanter değişimi). Bu endpoint test-only akışlara
+  hizmet verir; production client'ları etkilenmez.
+- **PAdES imza çıktısı iText 5'ten EU DSS (PDFBox 3) akışına taşındı.**
+  Üretilen imzalı PDF'in byte yapısı değişti (imza doğrulaması equivalent —
+  tüm PAdES roundtrip + tamper testleri DSS çıktısıyla TOTAL_PASSED).
+  İmzalı PDF çıktısına byte-level bağımlılığı olan downstream entegrasyonlar
+  bu sürümde doğrulanmalıdır.
+- **Spring profilleri yeniden adlandırıldı:** `pfx-kurum01/02/03-rsa2048`
+  kaldırıldı → `pfx-kurum17-ec384` (default) + `pfx-kurum02/03-ec384`.
+  `SPRING_PROFILES_ACTIVE`'de eski profil adı kullanan deployment'lar
+  boot'ta fail-fast olur.
+
+### Added
+
+- **HSM force-login desteği: `--list-certificates --force-login` CLI bayrağı ve
+  `PKCS11_FORCE_LOGIN=true` env var'ı.**
+  **Neden:** Bazı HSM cihazları (sıkı FIPS modu veya vendor politikası gereği)
+  public objeleri — sertifikalar, public key'ler, hatta mekanizma listesi —
+  bile authenticate edilmemiş oturuma göstermez. Normal akışta PKCS#11 wrapper
+  login'i token metadata/mekanizma sorgularından SONRAYA bırakır; bu cihazlarda
+  init ya `CKR_USER_NOT_LOGGED_IN` ile patlar ya da boş listing döner. Yeni
+  force-login modu, token seçilir seçilmez bootstrap bir oturum açıp
+  `C_Login(CKU_USER, pin)` yapar; login durumu PKCS#11 spec gereği uygulamanın
+  tüm oturumlarına yayıldığından sonraki tüm sorgular authenticated koşar.
+  Bootstrap oturumu modül yaşamı boyunca açık tutulur (son oturum kapanırsa
+  login state'in düşmesini önlemek için) ve `destroy()`/reinit yollarında
+  kapatılır. Bu modda PIN zorunludur; login hatası fail-fast'tir
+  (`CKR_USER_ALREADY_LOGGED_IN` tolere edilir). Bayrak üç yüzeyde de geçerli:
+  CLI listing (`--force-login`), Spring server yolu ve out-of-process
+  PKCS#11 helper (env otomatik aktarılır).
+
+- **Geliştirici kanallarına HSM sertifika listeleme akışı (force-login ile).**
+  **Neden:** TÜBİTAK Mali Mühür AKİS kurulumu tamamlanan makinelerde HSM'deki
+  sertifikaları hızlıca listelemek için tek-tık / tek-komut yol gerekiyordu.
+  Mevcut `CLI · List PFX Certificates (KURUM01)` deseni HSM'e taşındı:
+  - Yeni IntelliJ/Cursor run config:
+    `CLI · List HSM Certificates (Mali Mühür AKİS · force-login)` —
+    `--list-certificates --force-login`, OS-spesifik `PKCS11_LIBRARY` default'u
+    ve gizli değer sızmaması için `CERTIFICATE_PIN=REPLACE_WITH_YOUR_PIN`
+    placeholder'ı ile.
+  - `scripts/dev-run.sh` ve `scripts/dev-run.bat`'e `list-hsm` (alias
+    `list-certs-hsm`) senaryosu: Spring kaldırmadan `exec:java` ile listeler,
+    AKİS sürücü yolunu ve `PKCS11_NULL_INIT_ARGS` default'unu OS'a göre seçer,
+    `CERTIFICATE_PIN` yoksa fail-fast.
+  - `docs/RUN_PROFILES.md` bu üç kanal için HSM listeleme bölümüyle güncellendi.
+
+- **Üç AdES formatında da tam imza seviyesi yelpazesi: `*_BES` / `*_T` / `*_LT` / `*_A`.**
+  **Neden:** Önceden yalnızca XAdES'te `XADES_BES` ve `XADES_A` (LTA) seçilebiliyordu;
+  CAdES tek seviyede (BASELINE-B) sabitti, PAdES ise özel iText+BouncyCastle
+  implementasyonuyla yalnız temel imza üretiyordu. Artık her üç format da
+  request alanı üzerinden B/T/LT/LTA seviyelerini destekliyor. Seviyenin tek
+  karar vericisi request'tir; `documentType` seviye kararına dahil değildir.
+  - **XAdES** — `XadesSignatureLevel`'a `XADES_T` ve `XADES_LT` eklendi.
+    `XADES_T` → override edilmiş `XAdESLevelBaselineT` (signature timestamp),
+    `XADES_LT` → legacy `XAdESLevelXL` (CertificateValues + RevocationValues;
+    projenin OCSP/CRL cache override'ı ile tutarlı). `XADES_A` davranışı
+    (`XAdESLevelA`) korundu. OCSP cache cleanup koşulu artık LT + A'yı kapsıyor.
+  - **CAdES** — yeni `CadesSignatureLevel` (`CADES_BES`/`CADES_T`/`CADES_LT`/`CADES_A`)
+    DSS `CAdES_BASELINE_{B,T,LT,LTA}`'ya eşlenir. `SignCadesDto.signatureLevel`
+    alanı + `CadesController` geçişi.
+  - **PAdES** — implementasyon özel iText+BouncyCastle yığınından EU **DSS
+    `PAdESService` (PDFBox 3)** akışına taşındı; B/T/LT/LTA native desteklenir.
+    Yeni `PadesSignatureLevel` enum, `SignPadesDto.signatureLevel` alanı ve
+    `SignatureConfiguration`'a `PAdESService` bean'i eklendi. Dosya eki imzadan
+    önce PDFBox ile gömülür (imza kapsamına girer).
+  - **Fail-fast sözleşmesi:** TSA gerektiren tüm seviyeler (T/LT/A) için
+    timestamp sunucusu yapılandırılmamışsa istek herhangi bir iş yapılmadan
+    `TIMESTAMP_ERROR` ile reddedilir; `*_BES`'e sessiz fallback yapılmaz.
+  - **.NET client:** `CadesSignatureLevel` / `PadesSignatureLevel` enum'ları,
+    `XadesSignatureLevel`'a `XADES_T` / `XADES_LT`, `SignCadesRequest` /
+    `SignPadesRequest`'e `SignatureLevel` alanı; `CadesSigner` / `PadesSigner`
+    `signatureLevel` form alanını gönderir.
+- **Tüm seviyeler için deterministik (ağsız) sign → validate roundtrip testleri.**
+  **Neden:** T/LT/A profilleri gerçek bir RFC 3161 TSA ve imzalama anında
+  erişilebilir iptal verisi (CRL/OCSP) gerektirir. "Gerçek TSA varsa koşar,
+  yoksa atlar" şeklindeki gated testler CI'da hiç çalışmaz ve güvenlik kanıtı
+  üretmez. Yeni `E2eLocalPki` test altyapısı BouncyCastle ile kendi kontrolümüzde
+  bir kök CA + imza sertifikası + TSA sertifikası + kök-imzalı CRL üretir;
+  `KeyEntityTSPSource` ile yerel/deterministik zaman damgası sağlar. Üretilen
+  imza, DSS'in kendi `SignedDocumentValidator`'ı ile **tam güven zinciri**
+  altında doğrulanır.
+  - `XAdES`/`CAdES`/`PAdES` için B/T/LT/LTA seviyelerinin gerçekten üretildiği
+    (`SimpleReport.getSignatureFormat`) **ve** doğrulamanın `TOTAL_PASSED`
+    döndüğü (imza bütünlüğü, zincir, süre, iptal ve zaman damgası kontrolleri
+    atlanmadan) doğrulanır.
+  - Her formatta T/LT/A için TSA yapılandırılmamışken fail-fast
+    `TIMESTAMP_ERROR` davranışı ve `*_BES`'in TSA'sız üretimi de kapsanır.
+  - Bu testler harici verifier konteynerine/ağa bağlı olmadığından varsayılan
+    `mvn test` koşusunda her ortamda çalışır (Docker/ağ gerektirmez).
+- **`TimestampConfigurationService.getTspSource()` artık `TSPSource` arayüzünü
+  döndürür** (somut `OnlineTSPSource` yerine). Çağıranlar zaten
+  `setTspSource(TSPSource)` ile tükettiği için daraltma kaybı yoktur; bu
+  değişiklik testlerin (veya alternatif yapılandırmaların) yerel anahtar tabanlı
+  bir TSA implementasyonu sağlamasına imkân tanır.
+
+### Changed
+
+- **Test sertifika envanteri RSA-2048 → EC-P384'ye taşındı (Kamu SM RSA
+  seti expire oldu).**
+  **Neden:** Kamu SM'in publicly-published mali mühür RSA-2048 test
+  sertifikalarının geçerliliği 2026-10-01'de doldu ve Kamu SM bunları
+  yenilemedi (EC384 seti Mart 2026'da 2028-05'e kadar geçerli taze
+  sertifikalarla yayımlandı, RSA yenilenmedi). Süresi dolmuş sertifikayla
+  imza üretilemediğinden tüm pozitif E2E matrisleri kırılıyordu.
+  - **Pozitif set (3 PFX):** `testkurum17_ec384@test.gov.tr_328829.pfx`
+    (yeni, 2028-05-20'ye kadar geçerli) + mevcut `testkurum02_ec384` /
+    `testkurum03_ec384` (2028-05-14'e kadar geçerli). `PfxTestKey`
+    enum'undan `KURUM01/02/03_RSA2048` kaldırıldı, `KURUM17_EC384` eklendi.
+  - **Negatif set (3 PFX):** RSA revoked/expired/suspended PFX'leri
+    kaldırıldı; EC384 revoked/expired/suspended kaldı.
+    `CertificateLifecycleNegativeE2ETest` matrisi 6 → 3'e indi.
+  - **Üretim counter-sign endpoint'i (`/v1/testusercountersign`):**
+    `TestCompany` enum'u EC384 setine taşındı (`TestKurum17/2/3`).
+    Servis zaten ECDSA-SHA384/SHA-384 dalını destekliyordu; RSA dalı
+    defansif olarak korundu.
+  - **RSA'ya özgü test kontratları EC384 karşılıklarına çevrildi:**
+    imza uzunluğu 256-byte modulus assertion'ı → P-384 DER SEQUENCE
+    boyut assertion'ı; SHA-1 legacy XAdES testi RSA_SHA1 → ECDSA_SHA1;
+    WS-Security hash matrisi RSA × SHA → ECDSA × SHA URI'leriyle;
+    SoftHSM force-login/paralel sign testleri ECDSA verify ile.
+    RSA mantığını test eden unit test'lerin çoğu kendi ürettiği RSA
+    anahtarlarını kullanmaya devam ediyor (PFX'e bağımlılık yok).
+  - **Spring profilleri:** `pfx-kurum01/02/03-rsa2048` kaldırıldı →
+    `pfx-kurum17-ec384` (default) + `pfx-kurum02/03-ec384`.
+    `application-local.properties` default PFX'i KURUM17 EC384 oldu.
+  - **DevOps:** Dockerfile default env'i, `.env.test.kurum1` →
+    `.env.test.kurum17`, `start-test-kurum.{sh,ps1}` cert map'i,
+    `dev-run.{sh,bat}` senaryoları, `.run/` + `.vscode/` IDE
+    config'leri, systemd/windows-service örnekleri ve CI workflow
+    yorumları EC384 setine güncellendi.
+  - **Stale script'ler kaldırıldı:** `scripts/{unix,windows}/start-test{1,2,3}.*`,
+    `quick-start-with-test-certs.*`, `test-with-bundled-certs.sh` ve
+    `TEST_CERTIFICATES.md` — hepsi 1 yıldır var olmayan dosya adlarına
+    referans veriyordu. Alternatif: `scripts/dev-run.{sh,bat}`.
+
+- **PDFBox 2.0.24 → 3.0.5'e yükseltildi.** DSS 6.3'ün `dss-pades-pdfbox` modülü
+  PDFBox 3 ile uyumlu (DSS-3616); 2.x/3.x split-brain'i önlemek için sürüm DSS
+  ile lockstep tutulur. PAdES'in DSS'e taşınmasının ön koşulu.
+  **Not (risk):** DSS PAdES-B çıktısı önceki iText çıktısından farklıdır;
+  `verifier-e2e` tag'li PAdES E2E testlerinin DSS çıktısına göre yeniden
+  doğrulanması gerekir (varsayılan `mvn test` koşusunda dışlanırlar).
+
 ## [1.0.6] - 2026-06-09
 
 ### Changed

@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *       multi-namespace, <code>xsi:type</code> attribute'lar, UBL benzeri
  *       business element'leri (VKN, isim, fatura UUID); GİB EFatura ve
  *       EArşiv endpoint'lerinin standart yapısı. Üretimde "Mali Mühür"
- *       sertifikası ({@code testkurum01_rsa2048@test.com.tr_614573.pfx}
+ *       sertifikası ({@code testkurum17_ec384@test.gov.tr_328829.pfx}
  *       muadili) ile imzalanır.</li>
  *   <li><b>Minimal envelope</b> — özel GİB header'ı taşımayan generic SOAP
  *       request (örn. KamuSM endpoint'leri ya da custom B2B servisler).
@@ -64,7 +64,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * </ul>
  *
  * <p>Bu kontrat, <em>WsSecuritySignAndLocalVerifyE2ETest</em>'in 90'lık
- * matrisinden (5 PFX × 2 backend × 9 fixture) ayrılır: orada "her envelope
+ * matrisinden (3 PFX × 2 backend × 9 fixture) ayrılır: orada "her envelope
  * sign-verify roundtrip" test edilir. Burada <b>iki envelope'un signer
  * üretiminde structural parity'sini</b> explicit assert ediyoruz —
  * regression olursa (örn. signer Mali Mühür envelope'unda farklı bir
@@ -87,13 +87,13 @@ class WsSecurityEnvelopeShapeParityTest {
             "http://schemas.xmlsoap.org/soap/envelope/";
 
     private static WsSecuritySignatureService service;
-    private static SigningMaterial rsa2048Material;
+    private static SigningMaterial ec384Material;
 
     @BeforeAll
     static void initStack() {
         service = new WsSecuritySignatureService(
                 new Semaphore(2), new DigestAlgorithmResolverService());
-        rsa2048Material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM01_RSA2048);
+        ec384Material = E2eSigningMaterialFactory.load(PfxTestKey.KURUM17_EC384);
     }
 
     /**
@@ -174,11 +174,11 @@ class WsSecurityEnvelopeShapeParityTest {
         WsSecurityLocalXmlDsigVerifier.Result gibResult =
                 WsSecurityLocalXmlDsigVerifier.validate(
                         gibSigned,
-                        rsa2048Material.getSigningCertificate().getPublicKey());
+                        ec384Material.getSigningCertificate().getPublicKey());
         WsSecurityLocalXmlDsigVerifier.Result minimalResult =
                 WsSecurityLocalXmlDsigVerifier.validate(
                         minimalSigned,
-                        rsa2048Material.getSigningCertificate().getPublicKey());
+                        ec384Material.getSigningCertificate().getPublicKey());
 
         assertTrue(gibResult.isValid(),
                 "Mali Mühür envelope için lokal XMLDsig validator reddetti: " + gibResult);
@@ -193,7 +193,7 @@ class WsSecurityEnvelopeShapeParityTest {
         SignResponse response = service.signSoapEnvelope(
                 doc,
                 fixture.isUseSoap12(),
-                rsa2048Material,
+                ec384Material,
                 /*alias*/ "test",
                 /*pin*/ new char[0]);
         assertNotNull(response);

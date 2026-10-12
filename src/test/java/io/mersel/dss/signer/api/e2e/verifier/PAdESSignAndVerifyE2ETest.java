@@ -31,11 +31,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
      * (PDF embedded) = 10 senaryo.</p>
  *
  * <h3>Önemli not — PAdES seviyesi</h3>
- * <p>Bizim PAdES implementasyonumuz şu an sadece <b>PAdES-BASELINE-B</b>
- * üretiyor (timestamp/LT/LTA upgrade yok). Verifier
+ * <p>PAdES artık EU DSS ({@code PAdESService}, PDFBox 3) üzerinden B/T/LT/LTA
+ * seviyelerini destekliyor. Bu roundtrip testi <b>varsayılan PAdES-BASELINE-B</b>
+ * (seviye verilmediğinde) üretir; TSA çağrılmaz. Verifier
  * <code>level=COMPREHENSIVE</code> ile çağrıldığında {@code timestampInfo}
- * alanı {@code null} dönecek; bu beklenen davranış, assertion'lar buna
- * göre yazıldı. PAdES-T üretmeye başladığımızda assertion'lar genişletilebilir.</p>
+ * alanı {@code null} dönecek; bu beklenen davranış, assertion'lar buna göre
+ * yazıldı. T/LT/A seviyeleri için ayrı (TSA gerektiren) senaryolar gerekir.</p>
  */
 @ExtendWith(SignedArtifactExporter.class)
 @Epic("Signature Roundtrip")
@@ -48,8 +49,16 @@ class PAdESSignAndVerifyE2ETest extends AbstractVerifierE2ETest {
     @BeforeAll
     static void initSigningStack() {
         DigestAlgorithmResolverService digestResolver = new DigestAlgorithmResolverService();
+        io.mersel.dss.signer.api.services.crypto.CryptoSignerService crypto =
+                new io.mersel.dss.signer.api.services.crypto.CryptoSignerService(
+                        new io.mersel.dss.signer.api.services.crypto.SignatureAlgorithmResolverService());
+        eu.europa.esig.dss.pades.signature.PAdESService dssPades =
+                new eu.europa.esig.dss.pades.signature.PAdESService(
+                        new eu.europa.esig.dss.spi.validation.CommonCertificateVerifier());
         padesSignatureService = new PAdESSignatureService(
-                new Semaphore(2), digestResolver);
+                dssPades, crypto, digestResolver,
+                new io.mersel.dss.signer.api.services.timestamp.TimestampConfigurationService("", "", "", false),
+                new Semaphore(2));
     }
 
     static Stream<Arguments> pfxAndBackendMatrix() {

@@ -47,17 +47,19 @@ public final class Pkcs11HelperMain {
         Long slot = sanitizeSlot(HelperEnv.read("PKCS11_SLOT", "-1"));
         Long slotIndex = sanitizeSlot(HelperEnv.read("PKCS11_SLOT_LIST_INDEX", "-1"));
         boolean nullInitArgs = Boolean.parseBoolean(HelperEnv.read("PKCS11_NULL_INIT_ARGS", "false"));
+        boolean forceLogin = Boolean.parseBoolean(HelperEnv.read("PKCS11_FORCE_LOGIN", "false"));
         int maxSessions = parseInt(HelperEnv.read("MAX_SESSION_COUNT", "5"), 5);
 
         String token = HelperEnv.read(HelperEnv.ENV_TOKEN, "");
         String bindHost = HelperEnv.read(HelperEnv.ENV_BIND_HOST, HelperEnv.DEFAULT_BIND_HOST);
         int port = parseInt(HelperEnv.read(HelperEnv.ENV_PORT, "0"), 0);
 
-        LOGGER.info("PKCS#11 helper başlıyor: library={}, JVM bit'liği={}, nullInitArgs={}, maxSessions={}",
-            libraryPath, NativeArchitecture.jvmBitness(), nullInitArgs, maxSessions);
+        LOGGER.info("PKCS#11 helper başlıyor: library={}, JVM bit'liği={}, nullInitArgs={}, "
+            + "forceLogin={}, maxSessions={}",
+            libraryPath, NativeArchitecture.jvmBitness(), nullInitArgs, forceLogin, maxSessions);
 
         IaikPkcs11Module module = new IaikPkcs11Module(
-            libraryPath, slot, slotIndex, pin.toCharArray(), nullInitArgs, maxSessions);
+            libraryPath, slot, slotIndex, pin.toCharArray(), nullInitArgs, maxSessions, forceLogin);
         module.afterPropertiesSet();
 
         Pkcs11HelperServer server = new Pkcs11HelperServer(module, token, bindHost, port);

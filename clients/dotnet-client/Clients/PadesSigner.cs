@@ -27,12 +27,15 @@ internal sealed class PadesSigner : DssSignerHttpBase, IPadesSigner
             throw new ArgumentException("PDF içeriği boş olamaz.", nameof(request));
 
         Logger.LogDebug(
-            "DSS Signer PAdES isteği — boyut: {Boyut} bayt, append: {Append}, attachment: {Att}",
-            request.Document.Length, request.AppendMode, request.Attachment is not null);
+            "DSS Signer PAdES isteği — boyut: {Boyut} bayt, append: {Append}, attachment: {Att}, seviye: {Seviye}",
+            request.Document.Length, request.AppendMode, request.Attachment is not null, request.SignatureLevel);
 
         using var form = new MultipartFormDataContent();
         AddFilePart(form, "document", request.Document, request.FileName, "application/pdf");
         AddStringPart(form, "appendMode", request.AppendMode ? "true" : "false");
+        // signatureLevel asla null değildir (default PADES_BES); enum sabit ismi
+        // sunucu Java enum'u ile birebir eşleşir (PADES_BES / PADES_T / PADES_LT / PADES_A).
+        AddStringPart(form, "signatureLevel", request.SignatureLevel.ToString());
 
         if (request.Attachment is { Length: > 0 })
         {

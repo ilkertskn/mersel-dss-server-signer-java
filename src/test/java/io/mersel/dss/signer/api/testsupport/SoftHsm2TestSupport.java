@@ -213,6 +213,16 @@ public final class SoftHsm2TestSupport implements AutoCloseable {
      * çağrılarda aynı module döner.
      */
     public IaikPkcs11Module openModule(String userPin) throws Exception {
+        return openModule(userPin, false);
+    }
+
+    /**
+     * {@link IaikPkcs11Module}'ü isteğe bağlı force-login modunda açar
+     * ({@code PKCS11_FORCE_LOGIN} / CLI {@code --force-login} yolu):
+     * token seçilir seçilmez, mekanizma/obje sorgularından önce
+     * {@code C_Login} yapılır.
+     */
+    public IaikPkcs11Module openModule(String userPin, boolean forceLogin) throws Exception {
         if (module != null) {
             return module;
         }
@@ -220,7 +230,8 @@ public final class SoftHsm2TestSupport implements AutoCloseable {
             throw new IllegalStateException("Önce initToken() + importPfx() çağrılmalı");
         }
         IaikPkcs11Module created = new IaikPkcs11Module(
-                modulePath.toString(), slot, 0L, userPin.toCharArray());
+                modulePath.toString(), slot, 0L, userPin.toCharArray(),
+                false /* forceNullInitArgs */, 0 /* sessionPoolSize: default */, forceLogin);
         created.afterPropertiesSet();
         this.module = created;
         return module;

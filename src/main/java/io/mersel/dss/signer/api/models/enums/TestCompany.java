@@ -11,7 +11,7 @@ package io.mersel.dss.signer.api.models.enums;
  * beklediği "kurum imzası" yerine geçecek bir <b>counter signature</b>
  * eklemek gerekir. Üretim akışında bu imza gerçek kurumun mali mührüyle
  * atılır; test akışında ise Kamu SM'in test ortamına özel açık yayımladığı
- * RSA test sertifikalarından biri kullanılır.</p>
+ * EC384 test sertifikalarından biri kullanılır.</p>
  *
  * <h3>Production'da KULLANILMAZ</h3>
  * <ul>
@@ -25,28 +25,34 @@ package io.mersel.dss.signer.api.models.enums;
  *
  * <h3>Naming convention</h3>
  * <pre>
- *   testkurum{NN}_rsa2048@{domain}_{password}.pfx
+ *   testkurum{NN}_ec384@{domain}_{password}.pfx
  * </pre>
  * <p>Şifre dosya adının son <code>_</code> segmentindedir; alias tüm
  * Kamu SM test PFX'lerinde sabit olarak <code>"1"</code>'dir
  * (Dockerfile ve PFX üretim akışıyla aynı convention).</p>
  *
+ * <h3>RSA'dan EC384'ye geçiş (2026-10)</h3>
+ * <p>Kamu SM'in RSA test sertifikalarının geçerliliği doldu ve yenilenmedi;
+ * EC384 seti 2028-05'e kadar geçerli taze sertifikalarla yayımlandı.
+ * Counter-sign servisi RSA/ECDSA dallarını zaten destekliyor
+ * (ECDSA-SHA384/SHA-384).</p>
+ *
  * <h3>Yeni test kurum eklemek</h3>
- * <p>Repo'ya yeni bir RSA test PFX'i konduktan sonra (aynı naming
+ * <p>Repo'ya yeni bir EC384 test PFX'i konduktan sonra (aynı naming
  * convention'a uyarak) bu enum'a yeni bir constant eklemek yeterlidir;
  * şifre dosya adından parse edilmez, enum'a explicit yazılır ki
  * production akışlarında dosya adı parse'ına bağımlı kalmayalım.</p>
  */
 public enum TestCompany {
 
-    /** Kamu SM "TestKurum01" RSA-2048 mali mühür test sertifikası. */
-    TestKurum1("testkurum01_rsa2048@test.com.tr_614573.pfx", "614573", "1"),
+    /** Kamu SM "TestKurum17" EC-P384 mali mühür test sertifikası. */
+    TestKurum17("testkurum17_ec384@test.gov.tr_328829.pfx", "328829", "1"),
 
-    /** Kamu SM "TestKurum02" RSA-2048 mali mühür test sertifikası. */
-    TestKurum2("testkurum02_rsa2048@sm.gov.tr_059025.pfx", "059025", "1"),
+    /** Kamu SM "TestKurum02" EC-P384 mali mühür test sertifikası. */
+    TestKurum2("testkurum02_ec384@test.com.tr_825095.pfx", "825095", "1"),
 
-    /** Kamu SM "TestKurum03" RSA-2048 mali mühür test sertifikası. */
-    TestKurum3("testkurum03_rsa2048@test.com.tr_181193.pfx", "181193", "1");
+    /** Kamu SM "TestKurum03" EC-P384 mali mühür test sertifikası. */
+    TestKurum3("testkurum03_ec384@test.com.tr_540425.pfx", "540425", "1");
 
     private final String pfxFileName;
     private final String pfxPassword;

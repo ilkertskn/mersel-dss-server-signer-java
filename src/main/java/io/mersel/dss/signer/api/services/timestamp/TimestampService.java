@@ -92,7 +92,7 @@ public class TimestampService {
             byte[] digest = computeDigest(documentData, digestAlgorithm);
             
             // TSP source'u al
-            OnlineTSPSource tspSource = timestampConfigurationService.getTspSource();
+            eu.europa.esig.dss.spi.x509.tsp.TSPSource tspSource = timestampConfigurationService.getTspSource();
             
             // DSS ile timestamp al
             TimestampBinary timestampBinary = tspSource.getTimeStampResponse(digestAlgorithm, digest);

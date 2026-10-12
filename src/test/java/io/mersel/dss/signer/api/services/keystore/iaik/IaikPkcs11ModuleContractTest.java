@@ -1,6 +1,7 @@
 package io.mersel.dss.signer.api.services.keystore.iaik;
 
 import eu.europa.esig.dss.enumerations.SignatureAlgorithm;
+import io.mersel.dss.signer.api.exceptions.KeyStoreException;
 import io.mersel.dss.signer.api.exceptions.SignatureException;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -13,6 +14,8 @@ import org.mockito.Mockito;
 import org.xipki.pkcs11.wrapper.PKCS11Constants;
 import org.xipki.pkcs11.wrapper.PKCS11Exception;
 import org.xipki.pkcs11.wrapper.PKCS11Module;
+import org.xipki.pkcs11.wrapper.Session;
+import org.xipki.pkcs11.wrapper.Token;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -353,6 +356,115 @@ class IaikPkcs11ModuleContractTest {
         Field f = outcome.getClass().getDeclaredField("singleThreaded");
         f.setAccessible(true);
         return f.getBoolean(outcome);
+    }
+
+    // ------------------------------------------------------------------
+    // Force-login (PKCS11_FORCE_LOGIN / --force-login) kontratı
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("performForceLogin: PIN yoksa fail-fast KeyStoreException, token'a dokunulmaz")
+    void performForceLogin_withoutPin_failsFastWithoutTouchingToken() throws Exception {
+        // Force-login modu "login'siz sorgu çalışmıyor" cihazları için var;
+        // PIN'siz sessizce anonymous moda düşmek bu kontratı bozar.
+        IaikPkcs11Module instance = new IaikPkcs11Module(
+            "non-existent-library", null, null, null, false, 0, true);
+
+        Token mockToken = Mockito.mock(Token.class);
+
+        InvocationTargetException ex = assertThrows(InvocationTargetException.class,
+            () -> invokeForceLogin(instance, mockToken));
+        assertTrue(ex.getCause() instanceof KeyStoreException,
+            "PIN'siz force-login KeyStoreException atmalı; gerçek cause: " + ex.getCause());
+        Mockito.verifyNoInteractions(mockToken);
+    }
+
+    @Test
+    @DisplayName("performForceLogin: C_Login(CKU_USER, pin) çağrılmalı ve bootstrap session açık kalmalı")
+    void performForceLogin_logsInAndKeepsBootstrapSessionOpen() throws Exception {
+        char[] pin = "123456".toCharArray();
+        IaikPkcs11Module instance = new IaikPkcs11Module(
+            "non-existent-library", null, null, pin, false, 0, true);
+
+        Token mockToken = Mockito.mock(Token.class);
+        Session mockSession = Mockito.mock(Session.class);
+        Mockito.when(mockToken.openSession(ArgumentMatchers.anyBoolean())).thenReturn(mockSession);
+
+        invokeForceLogin(instance, mockToken);
+
+        Mockito.verify(mockSession).login(
+            ArgumentMatchers.eq(PKCS11Constants.CKU_USER),
+            ArgumentMatchers.eq("123456".toCharArray()));
+        // PKCS#11 spec: uygulamanın son oturumu kapanırsa login state düşer.
+        // Bootstrap session login sonrası KAPATILMAMALI.
+        Mockito.verify(mockSession, Mockito.never()).closeSession();
+
+        Field f = IaikPkcs11Module.class.getDeclaredField("forceLoginBootstrapSession");
+        f.setAccessible(true);
+        assertTrue(f.get(instance) == mockSession,
+            "Bootstrap session field'da saklanmalı ki destroy() kapatabilsin.");
+
+        // destroy() bootstrap session'ı kapatmalı.
+        instance.destroy();
+        Mockito.verify(mockSession).closeSession();
+    }
+
+    @Test
+    @DisplayName("performForceLogin: CKR_USER_ALREADY_LOGGED_IN tolere edilmeli")
+    void performForceLogin_toleratesAlreadyLoggedIn() throws Exception {
+        char[] pin = "123456".toCharArray();
+        IaikPkcs11Module instance = new IaikPkcs11Module(
+            "non-existent-library", null, null, pin, false, 0, true);
+
+        Token mockToken = Mockito.mock(Token.class);
+        Session mockSession = Mockito.mock(Session.class);
+        Mockito.when(mockToken.openSession(ArgumentMatchers.anyBoolean())).thenReturn(mockSession);
+        Mockito.doThrow(new PKCS11Exception(PKCS11Constants.CKR_USER_ALREADY_LOGGED_IN))
+            .when(mockSession).login(ArgumentMatchers.anyLong(), ArgumentMatchers.any());
+
+        // Exception fırlamamalı; başka bir bileşen zaten login olmuş demek.
+        invokeForceLogin(instance, mockToken);
+
+        Mockito.verify(mockSession, Mockito.never()).closeSession();
+    }
+
+    @Test
+    @DisplayName("performForceLogin: login reddi → KeyStoreException + bootstrap session kapatılır")
+    void performForceLogin_propagatesLoginFailureAndClosesSession() throws Exception {
+        char[] pin = "wrong-pin".toCharArray();
+        IaikPkcs11Module instance = new IaikPkcs11Module(
+            "non-existent-library", null, null, pin, false, 0, true);
+
+        Token mockToken = Mockito.mock(Token.class);
+        Session mockSession = Mockito.mock(Session.class);
+        Mockito.when(mockToken.openSession(ArgumentMatchers.anyBoolean())).thenReturn(mockSession);
+        Mockito.doThrow(new PKCS11Exception(PKCS11Constants.CKR_PIN_INCORRECT))
+            .when(mockSession).login(ArgumentMatchers.anyLong(), ArgumentMatchers.any());
+
+        InvocationTargetException ex = assertThrows(InvocationTargetException.class,
+            () -> invokeForceLogin(instance, mockToken));
+        assertTrue(ex.getCause() instanceof KeyStoreException,
+            "Login reddi KeyStoreException'a sarılmalı; gerçek cause: " + ex.getCause());
+        Mockito.verify(mockSession).closeSession();
+    }
+
+    @Test
+    @DisplayName("6-arg geriye uyumlu ctor forceLogin=false default'lamalı")
+    void legacyCtor_mustDefaultForceLoginToFalse() throws Exception {
+        IaikPkcs11Module instance = new IaikPkcs11Module(
+            "non-existent-library", null, null, null, false, 0);
+
+        Field f = IaikPkcs11Module.class.getDeclaredField("forceLogin");
+        f.setAccessible(true);
+        assertFalse(f.getBoolean(instance),
+            "Mevcut çağıranlar (üretim config, testler) davranış değişikliği görmemeli.");
+    }
+
+    /** private {@code performForceLogin(Token)} metodunu reflection ile çağırır. */
+    private static void invokeForceLogin(IaikPkcs11Module instance, Token token) throws Exception {
+        Method m = IaikPkcs11Module.class.getDeclaredMethod("performForceLogin", Token.class);
+        m.setAccessible(true);
+        m.invoke(instance, token);
     }
 
     @Test

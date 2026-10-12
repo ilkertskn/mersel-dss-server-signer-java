@@ -1,11 +1,13 @@
 #!/bin/bash
 # Start Sign API with Test Kurum Configuration
-# Usage: ./start-test-kurum.sh [kurum_no] [cert_type]
+# Usage: ./start-test-kurum.sh [kurum_no]
 # Examples:
-#   ./start-test-kurum.sh 1          # Kurum 1 - RSA (default)
-#   ./start-test-kurum.sh 2 rsa      # Kurum 2 - RSA
-#   ./start-test-kurum.sh 2 ec384    # Kurum 2 - EC384
-#   ./start-test-kurum.sh 3 ec384    # Kurum 3 - EC384
+#   ./start-test-kurum.sh 17         # Kurum 17 - EC384 (default)
+#   ./start-test-kurum.sh 2          # Kurum 2 - EC384
+#   ./start-test-kurum.sh 3          # Kurum 3 - EC384
+#
+# 2026-10: RSA test sertifikalari Kamu SM tarafinda yenilenmedigi icin
+# kaldirildi; tum kurumlar EC384 setinden secilir.
 
 set -e
 
@@ -13,15 +15,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOCKER_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Parametreler
-KURUM_NO=${1:-1}
-CERT_TYPE=${2:-rsa}
+KURUM_NO=${1:-17}
+CERT_TYPE=${2:-ec384}
 
 # Sertifika mapping
 declare -A CERT_MAP
-CERT_MAP["1_rsa"]="testkurum01_rsa2048@test.com.tr_614573.pfx|614573|testkurum01"
-CERT_MAP["2_rsa"]="testkurum02_rsa2048@sm.gov.tr_059025.pfx|059025|testkurum02"
+CERT_MAP["17_ec384"]="testkurum17_ec384@test.gov.tr_328829.pfx|328829|testkurum17"
 CERT_MAP["2_ec384"]="testkurum02_ec384@test.com.tr_825095.pfx|825095|testkurum02_ec"
-CERT_MAP["3_rsa"]="testkurum03_rsa2048@test.com.tr_181193.pfx|181193|testkurum03"
 CERT_MAP["3_ec384"]="testkurum03_ec384@test.com.tr_540425.pfx|540425|testkurum03_ec"
 
 KEY="${KURUM_NO}_${CERT_TYPE}"
@@ -34,11 +34,9 @@ if [ -z "$CERT_INFO" ]; then
     echo "  ./start-test-kurum.sh [kurum_no] [cert_type]"
     echo ""
     echo "Geçerli kombinasyonlar:"
-    echo "  ./start-test-kurum.sh 1          # Kurum 1 - RSA (sadece RSA)"
-    echo "  ./start-test-kurum.sh 2 rsa      # Kurum 2 - RSA"
-    echo "  ./start-test-kurum.sh 2 ec384    # Kurum 2 - EC384"
-    echo "  ./start-test-kurum.sh 3 rsa      # Kurum 3 - RSA"
-    echo "  ./start-test-kurum.sh 3 ec384    # Kurum 3 - EC384"
+    echo "  ./start-test-kurum.sh 17         # Kurum 17 - EC384 (default)"
+    echo "  ./start-test-kurum.sh 2          # Kurum 2 - EC384"
+    echo "  ./start-test-kurum.sh 3          # Kurum 3 - EC384"
     exit 1
 fi
 
@@ -81,5 +79,5 @@ echo "📝 View logs: docker-compose logs -f sign-api"
 echo "🛑 Stop: docker-compose down"
 echo ""
 echo "💡 Farklı kombinasyonlar için:"
-echo "   ./start-test-kurum.sh 2 ec384  # Kurum 2 - EC384"
-echo "   ./start-test-kurum.sh 3 rsa    # Kurum 3 - RSA"
+echo "   ./start-test-kurum.sh 2        # Kurum 2 - EC384"
+echo "   ./start-test-kurum.sh 3        # Kurum 3 - EC384"

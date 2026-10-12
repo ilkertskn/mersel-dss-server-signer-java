@@ -21,7 +21,7 @@ import java.time.Duration;
  * <h3>Trust anchor stratejisi</h3>
  * <p>Verifier varsayılan olarak {@code TRUSTED_ROOT_RESOLVER_TYPE=kamusm-online}
  * çalışır ve <code>http://depo.kamusm.gov.tr/depo/SertifikaDeposu.xml</code>
- * adresinden güvenilir kökleri çeker. Bizim test PFX'lerinin (testkurum01/02/03)
+ * adresinden güvenilir kökleri çeker. Bizim test PFX'lerinin (testkurum17/02/03)
  * issuer'ları KamuSM'nin TEST CA'larıdır ve onlar da KamuSM XML deposunda
  * yer aldığı için extra mount gerekmez. İnternet bağlantısı zorunludur —
  * air-gapped ortamda bu testler skip edilmeli ya da

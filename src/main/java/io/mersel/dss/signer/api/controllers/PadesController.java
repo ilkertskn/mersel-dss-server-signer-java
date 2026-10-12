@@ -53,7 +53,10 @@ public class PadesController {
 
     @Operation(
         summary = "PDF belgelerini PAdES imzası ile imzalar",
-        description = "PDF belgelerine gömülü CAdES imzası oluşturur"
+        description = "PDF belgelerine PAdES (CAdES tabanlı) imzası oluşturur. İmza profili "
+                + "(PADES_BES / PADES_T / PADES_LT / PADES_A) 'signatureLevel' alanı ile belirlenir. "
+                + "Boş bırakılırsa PADES_BES uygulanır (TSA çağrılmaz). PADES_T/LT/A istenirse TSA "
+                + "gerekir; TSA yapılandırılmamışsa istek TIMESTAMP_ERROR ile reddedilir."
     )
     @RequestMapping(value = "/v1/padessign", method = RequestMethod.POST,
         consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
@@ -76,7 +79,7 @@ public class PadesController {
 
             boolean appendMode = Boolean.TRUE.equals(dto.getAppendMode());
             inputSize = dto.getDocument().getSize();
-            sample = signatureMetrics.start("PAdES", "pdf", appendMode ? "append" : "replace");
+            sample = signatureMetrics.start("PAdES", "pdf", dto.getSignatureLevel().name());
             byte[] attachment = dto.getAttachment() != null && !dto.getAttachment().isEmpty() 
                 ? dto.getAttachment().getBytes() 
                 : null;
@@ -93,7 +96,8 @@ public class PadesController {
                     attachment,
                     dto.getAttachmentFileName(),
                     appendMode,
-                    signingMaterial
+                    signingMaterial,
+                    dto.getSignatureLevel()
                 );
             }
 

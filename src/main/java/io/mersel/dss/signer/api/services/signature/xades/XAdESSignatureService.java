@@ -264,12 +264,13 @@ public class XAdESSignatureService {
                 // 1. Bu imzaya özel cache'i temizle (her imza için)
                 XAdESLevelC.cleanupOcspCache(actualSignatureId);
 
-                // 2. Eski genel cache'leri temizle (sadece XADES_A upgrade yapıldıysa)
-                // Çünkü XADES_A upgrade sırasında çok fazla OCSP/CRL cache'i oluşur.
-                // documentType ile koşullamak yerine, gerçekten XADES_A istenmiş mi
-                // olduğuna bakıyoruz: rapor tipinde olup XADES_BES seçilen istek
-                // hiç ek OCSP/CRL üretmez, gereksiz cleanup tetiklenmesin.
-                if (signatureLevel == XadesSignatureLevel.XADES_A) {
+                // 2. Eski genel cache'leri temizle (yalnızca C/XL yolundan geçen
+                // seviyeler: XADES_LT ve XADES_A). Bu seviyelerde çok sayıda OCSP/CRL
+                // cache'i oluşur. XADES_T yalnız signature timestamp ekler, OCSP/CRL
+                // üretmez; XADES_BES hiç upgrade yapmaz — ikisinde de gereksiz cleanup
+                // tetiklenmesin.
+                if (signatureLevel == XadesSignatureLevel.XADES_LT
+                        || signatureLevel == XadesSignatureLevel.XADES_A) {
                     XAdESLevelC.cleanupOldCaches(5 * 60 * 1000L);
                 }
             }

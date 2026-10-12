@@ -268,7 +268,7 @@ jobs:
           # scripts/serve-pages-locally.sh tarafından da kullanılır.
           # Production deployment'lara sızmaz — profile aktif edilmediğinde
           # property'ler yüklenmez.
-          PFX_FOR_BOOT="resources/test-certs/testkurum01_rsa2048@test.com.tr_614573.pfx"
+          PFX_FOR_BOOT="resources/test-certs/testkurum17_ec384@test.gov.tr_328829.pfx"
           if [ ! -f "$PFX_FOR_BOOT" ]; then
             echo "::warning::Test PFX yok ($PFX_FOR_BOOT); OpenAPI snapshot atlanıyor"
             exit 0

@@ -194,7 +194,7 @@ if [ "$SKIP_OPENAPI" = false ]; then
     # yüklenir: test PFX + dummy PIN + offline chain/TSP. Geliştirici
     # elle hiç env vermez. Test PFX repo'da olduğu için snapshot
     # extraction'a yeter.
-    PFX_FOR_BOOT="resources/test-certs/testkurum01_rsa2048@test.com.tr_614573.pfx"
+    PFX_FOR_BOOT="resources/test-certs/testkurum17_ec384@test.gov.tr_328829.pfx"
 
     if [ ! -f "$PFX_FOR_BOOT" ]; then
       warn "Test PFX yok: $PFX_FOR_BOOT — OpenAPI snapshot atlanıyor"

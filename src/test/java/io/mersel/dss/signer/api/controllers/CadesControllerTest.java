@@ -52,7 +52,7 @@ class CadesControllerTest {
         void attachedMode_shouldReturnOkWithOctetStream() throws Exception {
             byte[] signedBytes = "signed-data".getBytes();
             SignResponse mockResponse = new SignResponse(signedBytes, "base64sig");
-            when(cadesSignatureService.signData(any(InputStream.class), eq(false), eq(signingMaterial)))
+            when(cadesSignatureService.signData(any(InputStream.class), eq(false), eq(signingMaterial), any()))
                     .thenReturn(mockResponse);
 
             SignCadesDto dto = new SignCadesDto();
@@ -69,7 +69,7 @@ class CadesControllerTest {
         @Test
         void detachedMode_shouldIncludeSignatureValueHeader() throws Exception {
             SignResponse mockResponse = new SignResponse("detached-sig".getBytes(), "detached-base64");
-            when(cadesSignatureService.signData(any(InputStream.class), eq(true), eq(signingMaterial)))
+            when(cadesSignatureService.signData(any(InputStream.class), eq(true), eq(signingMaterial), any()))
                     .thenReturn(mockResponse);
 
             SignCadesDto dto = new SignCadesDto();
@@ -86,7 +86,7 @@ class CadesControllerTest {
         @Test
         void attachedMode_shouldNotIncludeSignatureValueHeader() throws Exception {
             SignResponse mockResponse = new SignResponse("attached-data".getBytes(), "big-base64");
-            when(cadesSignatureService.signData(any(InputStream.class), eq(false), eq(signingMaterial)))
+            when(cadesSignatureService.signData(any(InputStream.class), eq(false), eq(signingMaterial), any()))
                     .thenReturn(mockResponse);
 
             SignCadesDto dto = new SignCadesDto();
@@ -101,7 +101,7 @@ class CadesControllerTest {
         @Test
         void shouldReturnContentDispositionWithP7sExtension() throws Exception {
             SignResponse mockResponse = new SignResponse("data".getBytes(), "sig");
-            when(cadesSignatureService.signData(any(), anyBoolean(), any())).thenReturn(mockResponse);
+            when(cadesSignatureService.signData(any(), anyBoolean(), any(), any())).thenReturn(mockResponse);
 
             SignCadesDto dto = new SignCadesDto();
             dto.setDocument(new MockMultipartFile("document", "file.pdf", "application/pdf", "content".getBytes()));
@@ -116,7 +116,7 @@ class CadesControllerTest {
         @Test
         void nullDetachedFlag_shouldDefaultToAttached() throws Exception {
             SignResponse mockResponse = new SignResponse("data".getBytes(), "sig");
-            when(cadesSignatureService.signData(any(InputStream.class), eq(false), eq(signingMaterial)))
+            when(cadesSignatureService.signData(any(InputStream.class), eq(false), eq(signingMaterial), any()))
                     .thenReturn(mockResponse);
 
             SignCadesDto dto = new SignCadesDto();
@@ -126,7 +126,7 @@ class CadesControllerTest {
             ResponseEntity<?> response = controller.signCades(dto);
 
             assertEquals(HttpStatus.OK, response.getStatusCode());
-            verify(cadesSignatureService).signData(any(InputStream.class), eq(false), any());
+            verify(cadesSignatureService).signData(any(InputStream.class), eq(false), any(), any());
         }
     }
 
@@ -161,7 +161,7 @@ class CadesControllerTest {
 
         @Test
         void serviceException_shouldReturnInternalServerError() throws Exception {
-            when(cadesSignatureService.signData(any(), anyBoolean(), any()))
+            when(cadesSignatureService.signData(any(), anyBoolean(), any(), any()))
                     .thenThrow(new SignatureException("CADES_SIGN_ERROR", "CAdES failed"));
 
             SignCadesDto dto = new SignCadesDto();
@@ -175,7 +175,7 @@ class CadesControllerTest {
 
         @Test
         void unexpectedException_shouldReturnInternalServerError() throws Exception {
-            when(cadesSignatureService.signData(any(), anyBoolean(), any()))
+            when(cadesSignatureService.signData(any(), anyBoolean(), any(), any()))
                     .thenThrow(new RuntimeException("Unexpected"));
 
             SignCadesDto dto = new SignCadesDto();
@@ -184,6 +184,42 @@ class CadesControllerTest {
             ResponseEntity<?> response = controller.signCades(dto);
 
             assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        }
+    }
+
+    @Nested
+    class SignatureLevelPropagation {
+
+        @Test
+        void explicitLevel_isForwardedToService() throws Exception {
+            when(cadesSignatureService.signData(any(InputStream.class), anyBoolean(), any(),
+                    eq(io.mersel.dss.signer.api.models.enums.CadesSignatureLevel.CADES_LT)))
+                    .thenReturn(new SignResponse("x".getBytes(), "sig"));
+
+            SignCadesDto dto = new SignCadesDto();
+            dto.setDocument(new MockMultipartFile("document", "file.bin", "application/octet-stream", "content".getBytes()));
+            dto.setSignatureLevel(io.mersel.dss.signer.api.models.enums.CadesSignatureLevel.CADES_LT);
+
+            ResponseEntity<?> response = controller.signCades(dto);
+
+            assertEquals(HttpStatus.OK, response.getStatusCode());
+            verify(cadesSignatureService).signData(any(InputStream.class), anyBoolean(), any(),
+                    eq(io.mersel.dss.signer.api.models.enums.CadesSignatureLevel.CADES_LT));
+        }
+
+        @Test
+        void omittedLevel_defaultsToCADES_BES() throws Exception {
+            when(cadesSignatureService.signData(any(InputStream.class), anyBoolean(), any(), any()))
+                    .thenReturn(new SignResponse("x".getBytes(), "sig"));
+
+            SignCadesDto dto = new SignCadesDto();
+            dto.setDocument(new MockMultipartFile("document", "file.bin", "application/octet-stream", "content".getBytes()));
+            // signatureLevel set edilmedi → DTO non-null kontratı CADES_BES forward etmeli.
+
+            controller.signCades(dto);
+
+            verify(cadesSignatureService).signData(any(InputStream.class), anyBoolean(), any(),
+                    eq(io.mersel.dss.signer.api.models.enums.CadesSignatureLevel.CADES_BES));
         }
     }
 }

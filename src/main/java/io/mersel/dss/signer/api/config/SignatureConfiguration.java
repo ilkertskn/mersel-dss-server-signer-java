@@ -155,13 +155,17 @@ public class SignatureConfiguration {
         // yoksayıp her zaman numSessions=1 kullanır (PKCS#11 §5.4 güvenlik
         // önceliği). Bu güvenlik kararı modül içinde verilir — burada özel
         // bir branch'a gerek yok.
+        // PKCS11_FORCE_LOGIN: public objeleri bile login'siz göstermeyen
+        // HSM'lerde token sorgularından önce C_Login zorlar. Karar ve
+        // fail-fast kontratı modül içinde (performForceLogin).
         return new IaikPkcs11Module(
             config.getPkcs11LibraryPath(),
             slot,
             slotIndex,
             pin,
             config.isPkcs11NullInitArgs(),
-            config.getMaxSessionCount());
+            config.getMaxSessionCount(),
+            config.isPkcs11ForceLogin());
     }
 
     /**
@@ -196,6 +200,7 @@ public class SignatureConfiguration {
             env.put("PKCS11_SLOT_LIST_INDEX", String.valueOf(config.getPkcs11SlotIndex()));
         }
         env.put("PKCS11_NULL_INIT_ARGS", String.valueOf(config.isPkcs11NullInitArgs()));
+        env.put("PKCS11_FORCE_LOGIN", String.valueOf(config.isPkcs11ForceLogin()));
         env.put("MAX_SESSION_COUNT", String.valueOf(config.getMaxSessionCount()));
         // Sertifika seçimi + heartbeat helper'da (DLL'e bitişik) çalışır.
         if (StringUtils.hasText(config.getCertificateAlias())) {
@@ -398,6 +403,18 @@ public class SignatureConfiguration {
     @Bean
     public eu.europa.esig.dss.cades.signature.CAdESService cadesService(CertificateVerifier certificateVerifier) {
         return new eu.europa.esig.dss.cades.signature.CAdESService(certificateVerifier);
+    }
+
+    /**
+     * Sertifika doğrulayıcı ile yapılandırılmış PAdES servisini sağlar.
+     *
+     * <p>PDF imzalama için DSS PAdES API'si (PDFBox 3 implementasyonu) kullanılır.
+     * B/T/LT/LTA seviyelerini native destekler; CAdES/XAdES ile aynı
+     * {@code CertificateVerifier} ve TSP source altyapısını paylaşır.</p>
+     */
+    @Bean
+    public eu.europa.esig.dss.pades.signature.PAdESService padesService(CertificateVerifier certificateVerifier) {
+        return new eu.europa.esig.dss.pades.signature.PAdESService(certificateVerifier);
     }
 }
 

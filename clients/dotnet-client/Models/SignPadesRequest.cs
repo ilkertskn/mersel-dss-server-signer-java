@@ -20,6 +20,12 @@ public sealed class SignPadesRequest
     /// </summary>
     public bool AppendMode { get; set; }
 
+    /// <summary>
+    /// PAdES imza profili. Varsayılan <see cref="PadesSignatureLevel.PADES_BES"/>
+    /// (TSA çağrılmaz). T/LT/A istenirse sunucuda TSA yapılandırılmış olmalıdır.
+    /// </summary>
+    public PadesSignatureLevel SignatureLevel { get; set; } = PadesSignatureLevel.PADES_BES;
+
     /// <summary>İsteğe konacak multipart dosya adı.</summary>
     public string FileName { get; set; } = "document.pdf";
 

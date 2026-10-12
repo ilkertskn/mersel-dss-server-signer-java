@@ -38,12 +38,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * kontratlarını</b> doğrulayan E2E test seti.
  *
  * <h3>Neden ayrı sınıf?</h3>
- * <p>{@link WsSecuritySignAndLocalVerifyE2ETest} 5 PFX × 2 backend × 9
+ * <p>{@link WsSecuritySignAndLocalVerifyE2ETest} 3 PFX × 2 backend × 9
  * fixture = 90 senaryoda <em>sadece</em> "sign → independent-verify
  * roundtrip + ECDSA r||s format" invariant'larını test eder. Bunlar
  * key-tipinden bağımsız structural kontrat'lar (örn. "wsu:Id silindi"
  * mi); PFX/backend matrislemesi değer eklemez ve CI süresini gereksiz
- * uzatır. Burada her contract için <b>tek bir RSA PFX × JCA backend</b>
+ * uzatır. Burada her contract için <b>tek bir EC PFX × JCA backend</b>
  * yeterli — kontrat <em>XML davranışı</em>dır.</p>
  *
  * <h3>Kapsanan kontratlar (her biri 1 test method)</h3>
@@ -78,7 +78,7 @@ class WsSecurityContractE2ETest {
     private static SigningMaterial defaultMaterial;
 
     /**
-     * Tüm contract test'ler için sabit minimum stack: ilk RSA PFX + JCA backend.
+     * Tüm contract test'ler için sabit minimum stack: ilk EC PFX + JCA backend.
      * Kontrat XML davranışı olduğu için PFX/backend çeşitliliği değer eklemez.
      */
     @BeforeAll

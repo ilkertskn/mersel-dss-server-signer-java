@@ -91,8 +91,13 @@ class PAdESRuntimeScenariosE2ETest {
     @BeforeAll
     static void initSigningStack() {
         padesSignatureService = new PAdESSignatureService(
-                new Semaphore(2),
-                new DigestAlgorithmResolverService());
+                new eu.europa.esig.dss.pades.signature.PAdESService(
+                        new eu.europa.esig.dss.spi.validation.CommonCertificateVerifier()),
+                new io.mersel.dss.signer.api.services.crypto.CryptoSignerService(
+                        new io.mersel.dss.signer.api.services.crypto.SignatureAlgorithmResolverService()),
+                new DigestAlgorithmResolverService(),
+                new io.mersel.dss.signer.api.services.timestamp.TimestampConfigurationService("", "", "", false),
+                new Semaphore(2));
         defaultMaterial = E2eSigningBackend.PFX_JCA.load(PfxTestKey.positiveValues()[0]);
     }
 

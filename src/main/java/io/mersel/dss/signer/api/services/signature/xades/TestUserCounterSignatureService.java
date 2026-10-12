@@ -60,7 +60,7 @@ import java.util.UUID;
 
 /**
  * <strong>GİB test ortamı</strong> için entegratör tarafından imzalanmış
- * XAdES belgesine, Kamu SM'nin publicly-published <em>RSA-2048</em> mali
+ * XAdES belgesine, Kamu SM'nin publicly-published <em>EC-P384</em> mali
  * mühür test sertifikalarından birini kullanarak ETSI XAdES-BES uyumlu
  * <em>counter signature</em> ekleyen, <b>tamamen kendi kendine yeten</b>
  * servis.
@@ -77,9 +77,10 @@ import java.util.UUID;
  *       parent SignatureValue), KeyInfo yalnız imzacı sertifikası,
  *       QualifyingProperties altında SigningTime + SigningCertificate
  *       (CertDigest + IssuerSerial).</li>
- *   <li>Algoritma seçimi: RSA → RSA-SHA256/SHA-256, ECDSA →
- *       ECDSA-SHA384/SHA-384 (agent ile aynı kural; tüm TestKurum
- *       PFX'leri RSA-2048 olduğu için fiilen RSA-SHA256 çalışır).</li>
+ *   <li>Algoritma seçimi: ECDSA → ECDSA-SHA384/SHA-384, RSA →
+ *       RSA-SHA256/SHA-256 (agent ile aynı kural; tüm TestKurum
+ *       PFX'leri EC-P384 olduğu için fiilen ECDSA-SHA384 çalışır; RSA
+ *       dalı defansif olarak korunur).</li>
  *   <li>Canonicalization: SignedInfo c14n = INCLUSIVE_WITH_COMMENTS,
  *       parent SignatureValue reference transform = INCLUSIVE_WITH_COMMENTS
  *       — İmzager Kurumsal ve GİB doğrulayıcısıyla parite.</li>
@@ -165,10 +166,10 @@ public class TestUserCounterSignatureService {
 
     /**
      * Daha önce imzalanmış bir XAdES belgesine, seçili Kamu SM test
-     * kurumunun RSA PFX'i ile counter signature ekler.
+     * kurumunun EC384 PFX'i ile counter signature ekler.
      *
      * @param signedXmlInputStream Entegratör tarafından imzalanmış XAdES belgesi
-     * @param testCompany          Kullanılacak Kamu SM RSA test kurum sertifikası
+     * @param testCompany          Kullanılacak Kamu SM EC384 test kurum sertifikası
      * @return Counter-sign edilmiş belge + Base64 counter-signature SignatureValue
      */
     public SignResponse counterSign(InputStream signedXmlInputStream,
@@ -321,9 +322,9 @@ public class TestUserCounterSignatureService {
         String signedPropsRefId = "Reference-Id-" + UUID.randomUUID();
         String counterRefId = "Reference-Id-" + UUID.randomUUID();
 
-        // Algoritma seçimi: RSA-2048 NES = RSA-SHA256 / SHA-256,
-        // ECDSA = ECDSA-SHA384 / SHA-384. TestCompany enum'unda yalnızca
-        // RSA PFX'leri var; ECDSA dalı defansif olarak korundu.
+        // Algoritma seçimi: EC-P384 NES = ECDSA-SHA384 / SHA-384,
+        // RSA = RSA-SHA256 / SHA-256. TestCompany enum'unda yalnızca
+        // EC384 PFX'leri var; RSA dalı defansif olarak korundu.
         boolean ecdsa = isEcdsa(signingCert);
         String digestUrl = ecdsa ? DIGEST_SHA384 : DigestMethod.SHA256;
         String sigUrl = ecdsa ? SIG_ECDSA_SHA384 : SIG_RSA_SHA256;

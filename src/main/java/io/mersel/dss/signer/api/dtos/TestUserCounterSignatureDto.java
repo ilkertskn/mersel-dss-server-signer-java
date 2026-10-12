@@ -32,8 +32,8 @@ public class TestUserCounterSignatureDto {
     private MultipartFile document;
 
     /**
-     * Counter signature için kullanılacak Kamu SM RSA test sertifikası
-     * (TestKurum1 / TestKurum2 / TestKurum3). PFX
+     * Counter signature için kullanılacak Kamu SM EC384 test sertifikası
+     * (TestKurum17 / TestKurum2 / TestKurum3). PFX
      * {@code resources/test-certs/} altından yüklenir; private key ile
      * imza atılır.
      */
@@ -55,7 +55,7 @@ public class TestUserCounterSignatureDto {
     @NotNull
     @Schema(
         enumAsRef = true,
-        description = "Counter signature için kullanılacak Kamu SM RSA test kurum sertifikası. "
+        description = "Counter signature için kullanılacak Kamu SM EC384 test kurum sertifikası. "
                 + "Sadece test ortamında geçerlidir; production akışlarında kullanılmaz."
     )
     public void setTestCompany(TestCompany testCompany) {

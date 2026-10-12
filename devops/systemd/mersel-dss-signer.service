@@ -57,7 +57,7 @@ Environment="JAVA_OPTS=-Xms256m -Xmx1g -XX:+UseG1GC -XX:MaxGCPauseMillis=100"
 Environment="SERVER_PORT=8085"
 Environment="LOG_PATH=/var/log/mersel-dss-signer"
 # Production'da Spring profile set EDİLMEZ — application.properties default'u kullanılır.
-# Test/staging için: SPRING_PROFILES_ACTIVE=local,pfx-kurum01-rsa2048
+# Test/staging için: SPRING_PROFILES_ACTIVE=local,pfx-kurum17-ec384
 # (bkz. docs/RUN_PROFILES.md)
 
 ExecStart=/usr/bin/java \

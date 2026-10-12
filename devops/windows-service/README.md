@@ -133,7 +133,7 @@ Script otomatik olarak:
 | `XADES_SIGNING_TIME_ZONE` | XAdES | `+03:00` (default), `Z` (ETSI saf yorumu) — [issue #7](https://github.com/mersel-dss/server-signer-java/issues/7) |
 | `SERVER_PORT` | runtime | HTTP port (default 8085) |
 | `LOG_LEVEL` | runtime | `INFO` / `DEBUG` |
-| `SPRING_PROFILES_ACTIVE` | runtime | Production'da **boş**; test için `local,pfx-kurum01-rsa2048` ([docs/RUN_PROFILES.md](../../docs/RUN_PROFILES.md)) |
+| `SPRING_PROFILES_ACTIVE` | runtime | Production'da **boş**; test için `local,pfx-kurum17-ec384` ([docs/RUN_PROFILES.md](../../docs/RUN_PROFILES.md)) |
 
 Tam liste: [`mersel-dss-signer.env.example`](./mersel-dss-signer.env.example)
 

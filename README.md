@@ -105,13 +105,14 @@ Açık kaynağın gücüne inanıyor ve birlikte daha iyisini üretmeye devam ed
 **Unix/Linux/macOS:**
 
 ```bash
-./scripts/unix/quick-start-with-test-certs.sh
+# KURUM17 EC-P384 test PFX'i ile (default; network kapalı)
+./scripts/dev-run.sh
 ```
 
 **Windows:**
 
 ```powershell
-.\scripts\windows\quick-start-with-test-certs.ps1
+scripts\dev-run.bat
 ```
 
 ### Docker ile
@@ -155,7 +156,7 @@ mvn spring-boot:run
 
 > Tek komut yeter. `spring-boot-maven-plugin` otomatik olarak `local`
 > profile'ını aktif eder → [`application-local.properties`](src/main/resources/application-local.properties)
-> yüklenir → repo'daki test PFX (`resources/test-certs/testkurum01_rsa2048@...`)
+> yüklenir → repo'daki test PFX (`resources/test-certs/testkurum17_ec384@...`)
 > + dummy PIN ile uygulama anında ayağa kalkar. **Production'a sızmaz**: jar
 > doğrudan `java -jar` ile başlatıldığında bu profile aktif olmaz, prod-grade
 > env variable'lar (`PFX_PATH`, `CERTIFICATE_PIN`, vb.) zorunlu kalır.
@@ -176,9 +177,9 @@ mvn spring-boot:run -Dspring-boot.run.profiles=
 
 ## 🎯 Özellikler
 
-- ✅ **XAdES**: e-Fatura, e-Arşiv, XML imzalama
-- ✅ **CAdES**: CMS tabanlı elektronik imzalama (CAdES-BES)
-- ✅ **PAdES**: PDF dijital imzalama
+- ✅ **XAdES**: e-Fatura, e-Arşiv, XML imzalama — `XADES_BES` / `XADES_T` / `XADES_LT` / `XADES_A`
+- ✅ **CAdES**: CMS tabanlı elektronik imzalama — `CADES_BES` / `CADES_T` / `CADES_LT` / `CADES_A`
+- ✅ **PAdES**: PDF dijital imzalama (EU DSS / PDFBox 3) — `PADES_BES` / `PADES_T` / `PADES_LT` / `PADES_A`
 - ✅ **WS-Security**: SOAP imzalama
 - ✅ **Timestamp**: RFC 3161 (TÜBİTAK ESYA desteği)
 - ✅ **HSM/PKCS#11**: Donanım güvenlik modülü
@@ -192,17 +193,35 @@ mvn spring-boot:run -Dspring-boot.run.profiles=
 ## 📖 Örnek Kullanım
 
 ```bash
-# e-Fatura imzalama
+# e-Fatura imzalama (varsayılan XADES_BES — TSA çağrılmaz)
 curl -X POST http://localhost:8085/v1/xadessign \
   -F "document=@efatura.xml" \
   -F "documentType=UblDocument" \
   -o signed-efatura.xml
 
-# PDF imzalama
+# Zaman damgalı XAdES (XADES_T) — TSA yapılandırılmış olmalı
+curl -X POST http://localhost:8085/v1/xadessign \
+  -F "document=@efatura.xml" \
+  -F "documentType=UblDocument" \
+  -F "signatureLevel=XADES_T" \
+  -o signed-efatura-t.xml
+
+# PDF imzalama (varsayılan PADES_BES)
 curl -X POST http://localhost:8085/v1/padessign \
   -F "document=@document.pdf" \
   -o signed.pdf
+
+# Uzun dönem PAdES (PADES_LT) — TSA yapılandırılmış olmalı
+curl -X POST http://localhost:8085/v1/padessign \
+  -F "document=@document.pdf" \
+  -F "signatureLevel=PADES_LT" \
+  -o signed-lt.pdf
 ```
+
+> İmza seviyesinin tek karar vericisi `signatureLevel` alanıdır; `documentType`
+> seviyeye etki etmez. TSA gerektiren seviyeler (`*_T` / `*_LT` / `*_A`) için
+> timestamp sunucusu (`TS_SERVER_HOST`) yapılandırılmamışsa istek
+> `TIMESTAMP_ERROR` ile reddedilir.
 
 **Daha fazla örnek:** [Örnekler](https://dss.mersel.dev/examples)
 

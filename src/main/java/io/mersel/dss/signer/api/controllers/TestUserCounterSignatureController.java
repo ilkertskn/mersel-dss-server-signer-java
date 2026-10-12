@@ -29,7 +29,7 @@ import java.util.UUID;
 /**
  * <strong>GİB test ortamı</strong> için entegratör tarafından imzalanmış
  * XAdES belgesine (tipik: HrXml — Kullanıcı Açma/Kapama zarfı), Kamu SM'nin
- * publicly-published mali mühür <em>RSA-2048 test sertifikalarından</em>
+ * publicly-published mali mühür <em>EC-P384 test sertifikalarından</em>
  * birini kullanarak <em>counter signature</em> ekleyen endpoint.
  *
  * <h3>Neden ayrı bir endpoint?</h3>
@@ -37,7 +37,7 @@ import java.util.UUID;
  * (ana imza), (2) kullanıcının/kurumun mali mührü (counter signature).
  * Üretimde (2) gerçek kurumun PFX'i ile atılır; test ortamında ise GİB'in
  * sertifika onayı olmadığı için Kamu SM'in test ortamına özel olarak
- * yayımladığı <em>TestKurum1 / TestKurum2 / TestKurum3</em> RSA-2048
+ * yayımladığı <em>TestKurum17 / TestKurum2 / TestKurum3</em> EC-P384
  * test PFX'leri kullanılır.</p>
  *
  * <h3>Tasarım garantisi — production akışlarına etki yok</h3>
@@ -67,7 +67,7 @@ import java.util.UUID;
  * <ol>
  *   <li>Entegratör (DSS imzalayıcı) HrXml zarfını mali mührüyle imzalar
  *       ({@code POST /v1/xadessign} + {@code documentType=HrXml}).</li>
- *   <li>İmzalı XML, bu endpoint'e {@code TestKurum1|2|3} enum'u ile
+ *   <li>İmzalı XML, bu endpoint'e {@code TestKurum17|2|3} enum'u ile
  *       gönderilir.</li>
  *   <li>Dönüş: aynı XML, parent {@code <ds:Signature>} altına
  *       {@code <xades:CounterSignature>} eklenmiş hali.</li>
@@ -83,7 +83,7 @@ import java.util.UUID;
         havingValue = "true",
         matchIfMissing = true)
 @Tag(name = "TestUserCounterSignature",
-        description = "GİB test ortamı için Kamu SM RSA test kurum sertifikası ile "
+        description = "GİB test ortamı için Kamu SM EC384 test kurum sertifikası ile "
                 + "entegratör tarafından imzalanmış XAdES belgesine counter signature ekler. "
                 + "Production akışlarında KULLANILMAZ.")
 @CrossOrigin(origins = "*", allowedHeaders = "*",
@@ -151,7 +151,7 @@ public class TestUserCounterSignatureController {
             return ResponseEntity.badRequest()
                     .body(new ErrorModel("INVALID_INPUT",
                             "Counter-sign için 'testCompany' alanı zorunludur "
-                                    + "(TestKurum1 / TestKurum2 / TestKurum3)"));
+                                    + "(TestKurum17 / TestKurum2 / TestKurum3)"));
         }
 
         long inputSize = dto.getDocument().getSize();

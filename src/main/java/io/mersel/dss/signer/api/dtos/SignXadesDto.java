@@ -83,9 +83,11 @@ public class SignXadesDto {
     @Schema(
         enumAsRef = true,
         description = "XAdES imza profili. Boş bırakılırsa XADES_BES davranışı uygulanır "
-                + "(timestamp eklenmez, TSA çağrılmaz). XADES_A istenirse arşiv timestamp "
-                + "eklenir; TSA yapılandırılmamışsa istek TIMESTAMP_ERROR ile reddedilir. "
-                + "documentType seviye kararına dahil değildir — karar tamamen bu alana bağlıdır.",
+                + "(timestamp eklenmez, TSA çağrılmaz). XADES_T (signature timestamp), "
+                + "XADES_LT (uzun dönem doğrulama verisi) veya XADES_A (arşiv timestamp) "
+                + "istenirse TSA gerekir; TSA yapılandırılmamışsa istek TIMESTAMP_ERROR ile "
+                + "reddedilir. documentType seviye kararına dahil değildir — karar tamamen "
+                + "bu alana bağlıdır.",
         example = "XADES_BES",
         defaultValue = "XADES_BES"
     )

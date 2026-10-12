@@ -2,6 +2,7 @@ package io.mersel.dss.signer.api.services.timestamp;
 
 import eu.europa.esig.dss.service.http.commons.TimestampDataLoader;
 import eu.europa.esig.dss.service.tsp.OnlineTSPSource;
+import eu.europa.esig.dss.spi.x509.tsp.TSPSource;
 import io.mersel.dss.signer.api.exceptions.TimestampException;
 import io.mersel.dss.signer.api.services.timestamp.tubitak.TubitakTimestampDataLoader;
 import io.mersel.dss.signer.api.services.timestamp.tubitak.TubitakTspDetector;
@@ -52,11 +53,17 @@ public class TimestampConfigurationService {
     /**
      * TSP kaynağını yapılandırır ve döndürür.
      * Yapılandırma bir kez yapılır ve cache'lenir.
-     * 
-     * @return Yapılandırılmış OnlineTSPSource
+     *
+     * <p>Dönüş tipi {@link TSPSource} arayüzüdür (somut {@link OnlineTSPSource}
+     * yerine): bu sayede testler veya alternatif yapılandırmalar farklı bir
+     * {@code TSPSource} implementasyonu (ör. yerel anahtar tabanlı TSA)
+     * sağlayabilir. Çağıranlar zaten {@code setTspSource(TSPSource)} ile
+     * tüketir; daraltma kaybı yoktur.</p>
+     *
+     * @return Yapılandırılmış TSP kaynağı
      * @throws TimestampException Yapılandırma başarısız olursa
      */
-    public OnlineTSPSource getTspSource() {
+    public TSPSource getTspSource() {
         if (!StringUtils.hasText(tspServerUrl)) {
             throw new TimestampException(
                 "Timestamp sunucu URL'si yapılandırılmamış. TS_SERVER_HOST property'sini ayarlayın.");

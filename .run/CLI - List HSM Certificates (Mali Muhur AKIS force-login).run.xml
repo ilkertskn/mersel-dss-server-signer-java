@@ -1,0 +1,45 @@
+<component name="ProjectRunConfigurationManager">
+  <!--
+    SignatureApplication'ı `--list-certificates --force-login` moduyla çalıştırır;
+    Spring context kaldırmaz, TÜBİTAK Mali Mühür AKİS token'ına C_Login yapıp
+    içindeki sertifika bilgilerini stdout'a basar. HSM smoke-test'i için.
+
+    NEDEN --force-login:
+      listCertificates() Spring context kaldırmadığı için Spring profile / 
+      local-secrets.properties YÜKLENMEZ; sadece aşağıdaki env var'lar okunur.
+      AKİS gibi bazı HSM cihazları public objeleri (sertifika/public key)
+      oturum açılmadan göstermez → login'siz listing boş döner veya
+      CKR_USER_NOT_LOGGED_IN ile patlar. --force-login, token'a dair ilk
+      sorgudan önce PIN ile C_Login yaptırır. (Env karşılığı: PKCS11_FORCE_LOGIN=true)
+
+    ÖN KOŞUL (TÜBİTAK kurulumu tamamlandıktan sonra):
+      1) AKİS macOS sürücüsü kurulu (default: /usr/local/lib/libakisp11.dylib)
+      2) Kart okuyucu + akıllı kart takılı
+      3) Aşağıdaki CERTIFICATE_PIN'de REPLACE_WITH_YOUR_PIN yazısını kendi
+         PIN'inle değiştir. (Bu XML gizli değer taşımaz; commit'e sızmasın diye
+         placeholder bırakıldı.)
+
+    Farklı OS / sürücü yolu: PKCS11_LIBRARY env'ini değiştir
+      Linux   → /usr/local/lib/libakisp11.so        (PKCS11_NULL_INIT_ARGS=false)
+      Windows → C:/Windows/System32/akisp11.dll      (PKCS11_NULL_INIT_ARGS=false)
+  -->
+  <configuration default="false" name="CLI · List HSM Certificates (Mali Mühür AKİS · force-login)" type="Application" factoryName="Application">
+    <option name="ALTERNATIVE_JRE_PATH" value="1.8" />
+    <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="true" />
+    <envs>
+      <env name="PKCS11_LIBRARY" value="/usr/local/lib/libakisp11.dylib" />
+      <env name="PKCS11_SLOT" value="-1" />
+      <env name="PKCS11_SLOT_LIST_INDEX" value="-1" />
+      <env name="PKCS11_NULL_INIT_ARGS" value="true" />
+      <env name="PKCS11_FORCE_LOGIN" value="true" />
+      <env name="CERTIFICATE_PIN" value="REPLACE_WITH_YOUR_PIN" />
+    </envs>
+    <option name="MAIN_CLASS_NAME" value="io.mersel.dss.signer.api.SignatureApplication" />
+    <module name="mersel-dss-signer-api" />
+    <option name="PROGRAM_PARAMETERS" value="--list-certificates --force-login" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
